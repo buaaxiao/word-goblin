@@ -759,7 +759,9 @@
         <div class="row" style="margin-top:14px;">
           <button onclick="importData()">📥 导入电脑端数据</button>
           <button onclick="exportData()">📤 导出数据</button>
+          <button onclick="syncFromCloud()">☁️ 从共享词库同步</button>
         </div>
+        <p class="hint-text" id="dataSourceHint"></p>
       </div>
 
       <div class="card">
@@ -856,13 +858,64 @@ const LS_KEY = 'wordDictation.v1';
 let data = { chapters: [], history: [] };
 let currentChapter = 0;
 
-function loadData() {
+/**
+ * 加载数据：本地 localStorage 优先，没有或为空时才从 data.json 拉取。
+ * 这样日常使用都是本地读写，只有首次打开或清空缓存后才从云端取词库。
+ */
+async function loadData() {
+  // 1. 优先从本地 localStorage 加载
+  let loadedFromLocal = false;
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) data = JSON.parse(raw);
-  } catch (e) { data = { chapters: [], history: [] }; }
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (obj && Array.isArray(obj.chapters) && obj.chapters.length > 0) {
+        data = obj;
+        normalizeData();
+        loadedFromLocal = true;
+        console.log('已从本地加载词库');
+        setDataSourceHint('本地');
+      }
+    }
+  } catch (e) {
+    console.warn('本地数据读取失败', e);
+  }
+
+  // 2. 本地没有数据时，尝试从共享的 data.json 获取
+  if (!loadedFromLocal) {
+    try {
+      const res = await fetch('data.json?_=' + Date.now());
+      if (res.ok) {
+        const obj = await res.json();
+        if (obj && Array.isArray(obj.chapters) && obj.chapters.length > 0) {
+          data = obj;
+          normalizeData();
+          saveData(); // 缓存到本地，下次就直接用本地的
+          console.log('已从 data.json 加载共享词库');
+          setDataSourceHint('共享');
+        }
+      }
+    } catch (e) {
+      console.warn('共享词库加载失败', e);
+    }
+  }
+
+  // 3. 兜底：确保结构合法
   normalizeData();
 }
+
+function setDataSourceHint(source) {
+  const el = document.getElementById('dataSourceHint');
+  if (!el) return;
+  if (source === '本地') {
+    el.textContent = '当前词库来自本地缓存。如需获取共享词库最新版本，可点「☁️ 从共享词库同步」。';
+  } else if (source === '共享') {
+    el.textContent = '当前词库来自共享 data.json，已缓存到本地。之后修改都保存在本地。';
+  } else {
+    el.textContent = '暂无词库数据，可添加章节或点「☁️ 从共享词库同步」。';
+  }
+}
+
 function normalizeData() {
   if (!Array.isArray(data.chapters)) data.chapters = [];
   if (!Array.isArray(data.history)) data.history = [];
@@ -1176,7 +1229,7 @@ function doEditWord(wi) {
   saveData(); renderWords(); closeModal();
 }
 
-// ===================== 导入 / 导出 =====================
+// ===================== 导入 / 导出 / 云同步 =====================
 function importData() { $('fileInput').click(); }
 $('fileInput').addEventListener('change', function (e) {
   const f = e.target.files[0];
@@ -1203,6 +1256,57 @@ function exportData() {
   a.download = 'data.json';
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/**
+ * 从共享的 data.json 同步词库。
+ * 采用「按章节名合并」策略：本地独有的内容会保留，云端独有的章节会追加，
+ * 两边都有的章节按单词文本去重合并。合并前会先备份当前本地数据。
+ */
+async function syncFromCloud() {
+  if (!confirm('将从 data.json 合并词库：\n· 本地独有的章节和单词会保留\n· 云端独有的章节会追加\n· 同名章节按单词去重合并\n\n确定继续？')) return;
+
+  try {
+    const res = await fetch('data.json?_=' + Date.now());
+    if (!res.ok) { toast('加载失败：HTTP ' + res.status); return; }
+    const cloud = await res.json();
+    if (!cloud || !Array.isArray(cloud.chapters)) { toast('data.json 格式不正确'); return; }
+
+    // 先备份当前本地数据，方便回滚
+    try {
+      localStorage.setItem(LS_KEY + '.backup', JSON.stringify(data));
+    } catch (e) {}
+
+    // 按章节名合并
+    const localMap = new Map();
+    data.chapters.forEach((ch, i) => localMap.set(ch.name, i));
+
+    cloud.chapters.forEach(cCloudCh => {
+      const idx = localMap.get(cCloudCh.name);
+      if (idx === undefined) {
+        // 云端有、本地没有的章节 → 直接追加
+        data.chapters.push(cCloudCh);
+      } else {
+        // 两边都有 → 按 text 去重合并
+        const localCh = data.chapters[idx];
+        const localTexts = new Set(localCh.words.map(w => w.text));
+        cCloudCh.words.forEach(w => {
+          if (!localTexts.has(w.text)) {
+            localCh.words.push(w);
+          }
+        });
+        // 保留本地章节的 selected 状态
+      }
+    });
+
+    saveData();
+    renderChapterList();
+    renderWords();
+    setDataSourceHint('本地');
+    toast('已合并共享词库，本地数据已保留');
+  } catch (e) {
+    toast('同步失败：' + e.message);
+  }
 }
 
 // ===================== 语音 =====================
@@ -1642,12 +1746,18 @@ function showResult(r) {
 }
 
 // ===================== 初始化 =====================
-loadData();
-if (data.chapters.length && currentChapter >= data.chapters.length) currentChapter = 0;
-renderChapterList();
-renderWords();
-showPhase('idle');
-loadVoices();
+(async function init() {
+  await loadData();
+  if (data.chapters.length && currentChapter >= data.chapters.length) currentChapter = 0;
+  renderChapterList();
+  renderWords();
+  showPhase('idle');
+  loadVoices();
+  // 如果本地和云端都没有数据，给个提示
+  if (!data.chapters.length) {
+    setDataSourceHint('');
+  }
+})();
 </script>
 </body>
 </html>
