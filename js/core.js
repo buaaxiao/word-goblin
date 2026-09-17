@@ -241,3 +241,25 @@ function openModal(title, bodyHtml) {
   $('modal').classList.remove('hidden');
 }
 function closeModal() { $('modal').classList.add('hidden'); }
+
+// ===== 居中告警（页面中部弹窗样式提示） =====
+function showAlert(msg) {
+  let alertEl = $('alertOverlay');
+  if (!alertEl) {
+    alertEl = document.createElement('div');
+    alertEl.id = 'alertOverlay';
+    alertEl.className = 'modal';
+    alertEl.innerHTML = '<div class="modal-box center-alert">' +
+      '<div class="alert-icon">⚠️</div>' +
+      '<p id="alertMsg" class="alert-msg"></p>' +
+      '<div class="row"><button class="primary" onclick="closeAlert()">确定</button></div></div>';
+    alertEl.addEventListener('click', function (e) { if (e.target === alertEl) closeAlert(); }); // 点击遮罩关闭
+    document.body.appendChild(alertEl);
+  }
+  $('alertMsg').textContent = msg;
+  alertEl.classList.remove('hidden');
+}
+function closeAlert() {
+  const alertEl = $('alertOverlay');
+  if (alertEl) alertEl.classList.add('hidden');
+}

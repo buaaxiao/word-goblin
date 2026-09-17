@@ -1,11 +1,16 @@
 /* ===================================================================
  * js/words.js - 单词列表 / 排序 / 增删改
  * 自 index.html 内联脚本拆分而来；所有函数保持为全局 API（兼容内联 onclick）。
+ *
+ * 单词行结构：单层 grid（8 槽），与 .word-table-header 共享同一套列模板
+ *   编辑模式：手柄 | 单词 | 对 | 最后对 | 错 | 最后错 | 均分 | 操作
+ *   查看模式：单词 | 对 | 最后对 | 错 | 最后错 | 均分              (6 槽)
+ *   多章节：  单词 | 对 | 最后对 | 错 | 最后错 | 均分 | 操作       (7 槽)
  * =================================================================== */
 let wordDragSrcIndex = null;
 let wordDragOverIndex = null;
 
-// ===== 单词去重（合集视图：相同单词只显示第一个） =====
+// ===== 单词去重 =====
 const DEDUPE_KEY = 'wordDictation.dedupe.v1';
 let dedupeWords = false;
 function loadDedupe() {
@@ -23,7 +28,7 @@ function toggleDedupe() {
   try { localStorage.setItem(DEDUPE_KEY, dedupeWords ? '1' : '0'); } catch (e) {}
   openWordDetails.clear();
   applyDedupeUI();
-  collapseState.word = false; // 点击去重时同步展开单词列表
+  collapseState.word = false;
   saveCollapseState();
   applyCollapseState();
   renderWords();
@@ -53,13 +58,58 @@ function getMergedItems() {
   return shown;
 }
 
+// ===== 单词行 HTML：单层 grid（8 槽或 6 槽） =====
+// 槽位（编辑/多章节）：手柄 | 单词 | 对 | 最后对 | 错 | 最后错 | 均分 | 操作
+// 槽位（查看模式）：    单词 | 对 | 最后对 | 错 | 最后错 | 均分
+function buildWordRowHtml(w, key, opts) {
+  const { viewMode, noHandle, wordSearchQuery } = opts;
+  const wordTip = w.meaning ? w.text + '（' + w.meaning + '）' : w.text;
+
+  // 单词列
+  const wordHtml =
+    '<span class="word-cell">' +
+      '<span class="wtext" title="' + esc(wordTip) + '" onclick="toggleWordDetail(' + key + ')">' +
+        highlightText(w.text, wordSearchQuery) +
+      '</span>' +
+      (w.meaning
+        ? '<span class="wmeaning" title="' + esc(w.meaning) + '">' +
+            highlightText(w.meaning, wordSearchQuery) +
+          '</span>'
+        : '') +
+    '</span>';
+
+  // 5 个统计列
+  const statsHtml =
+    '<span class="wstat-num" title="答对 ' + (w.correctCount || 0) + ' 次">✅ ' + (w.correctCount || 0) + '</span>' +
+    '<span class="wstat-date" title="最后答对 ' + (w.lastCorrectDate || '—') + '">' + (w.lastCorrectDate || '—') + '</span>' +
+    '<span class="wstat-num" title="答错 ' + (w.wrongCount || 0) + ' 次">❌ ' + (w.wrongCount || 0) + '</span>' +
+    '<span class="wstat-date" title="最后答错 ' + (w.lastErrorDate || '—') + '">' + (w.lastErrorDate || '—') + '</span>' +
+    '<span class="wstat-score" title="均分 ' + avg(w) + '">⭐ ' + avg(w) + '</span>';
+
+  // 操作列
+  const actionsHtml =
+    '<span class="wstat-actions">' +
+      '<button class="icon-btn" onclick="editWord(' + key + ')" title="编辑">✎</button>' +
+      '<button class="icon-btn" onclick="deleteWord(' + key + ')" title="删除">🗑</button>' +
+    '</span>';
+
+  // 查看模式：6 槽（单词 + 5 统计）
+  if (viewMode) return wordHtml + statsHtml;
+
+  // 多章节 / 去重：7 槽（单词 + 5 统计 + 操作，无手柄）
+  if (noHandle) return wordHtml + statsHtml + actionsHtml;
+
+  // 编辑模式（单章节，有手柄）：8 槽
+  return '<span class="drag-handle" title="拖动排序">≡</span>' +
+         wordHtml + statsHtml + actionsHtml;
+}
+
 function renderWords() {
   const el = $('wordList');
   el.innerHTML = '';
   const titleEl = $('wordChapterTitle');
   const badge = $('wordCountBadge');
 
-  // 选中的章节索引
   const selectedIdx = [];
   data.chapters.forEach((c, ci) => { if (c.selected) selectedIdx.push(ci); });
   if (!selectedIdx.length) {
@@ -71,8 +121,8 @@ function renderWords() {
   }
 
   const multi = selectedIdx.length > 1;
-  if (!multi && currentChapter !== selectedIdx[0]) currentChapter = selectedIdx[0]; // 单章节时同步当前章节
-  const noHandle = multi || dedupeWords; // 多章节合集 / 去重时行内无拖拽手柄
+  if (!multi && currentChapter !== selectedIdx[0]) currentChapter = selectedIdx[0];
+  const noHandle = multi || dedupeWords;
   const wBody = $('wordBody');
   if (wBody) wBody.classList.toggle('multi-ch', noHandle);
 
@@ -80,7 +130,7 @@ function renderWords() {
   const rawCount = items._raw;
   if (titleEl) {
     titleEl.textContent = multi
-      ? '选中章节单词合集（' + selectedIdx.length + ' 章）'
+      ? '选中' + selectedIdx.length + '章'
       : '「' + data.chapters[currentChapter].name + '」的单词';
   }
 
@@ -147,40 +197,7 @@ function renderWords() {
         '<div class="detail-bar"><div class="bar-ok" style="width:' + okPct + '%"></div><div class="bar-wrong" style="width:' + wrongPct + '%"></div></div>' +
       '</div>';
 
-    if (viewMode) {
-      const wordTip = w.meaning ? w.text + '（' + w.meaning + '）' : w.text;
-      d.innerHTML =
-        '<span class="wtext" title="' + esc(wordTip) + '" onclick="toggleWordDetail(' + key + ')">' + highlightText(w.text, wordSearchQuery) + '</span>' +
-        (w.meaning ? '<span class="wmeaning" title="' + esc(w.meaning) + '">' + highlightText(w.meaning, wordSearchQuery) + '</span>' : '') +
-        '<span class="spacer"></span>' +
-        '<div class="wstats">' +
-          '<span title="答对 ' + (w.correctCount || 0) + ' 次">✅ ' + (w.correctCount || 0) + '</span>' +
-          '<span title="最后答对 ' + (w.lastCorrectDate || '—') + '">' + (w.lastCorrectDate || '—') + '</span>' +
-          '<span title="答错 ' + (w.wrongCount || 0) + ' 次">❌ ' + (w.wrongCount || 0) + '</span>' +
-          '<span title="最后答错 ' + (w.lastErrorDate || '—') + '">' + (w.lastErrorDate || '—') + '</span>' +
-          '<span title="均分 ' + avg(w) + '">⭐ ' + avg(w) + '</span>' +
-        '</div>' +
-        detailHtml;
-    } else {
-      const wordTip = w.meaning ? w.text + '（' + w.meaning + '）' : w.text;
-      d.innerHTML =
-        '<div class="word-main">' +
-          (!noHandle ? '<span class="drag-handle" title="拖动排序">≡</span>' : '') +
-          '<span class="wtext" title="' + esc(wordTip) + '" onclick="toggleWordDetail(' + key + ')">' + highlightText(w.text, wordSearchQuery) + '</span>' +
-          (w.meaning ? '<span class="wmeaning" title="' + esc(w.meaning) + '">' + highlightText(w.meaning, wordSearchQuery) + '</span>' : '') +
-          '<span class="spacer"></span>' +
-          '<button class="icon-btn" onclick="editWord(' + key + ')" title="编辑">✎</button>' +
-          '<button class="icon-btn" onclick="deleteWord(' + key + ')" title="删除">🗑</button>' +
-        '</div>' +
-        '<div class="wstats">' +
-          '<span title="答对 ' + (w.correctCount || 0) + ' 次">✅ ' + (w.correctCount || 0) + '</span>' +
-          '<span title="最后答对 ' + (w.lastCorrectDate || '—') + '">' + (w.lastCorrectDate || '—') + '</span>' +
-          '<span title="答错 ' + (w.wrongCount || 0) + ' 次">❌ ' + (w.wrongCount || 0) + '</span>' +
-          '<span title="最后答错 ' + (w.lastErrorDate || '—') + '">' + (w.lastErrorDate || '—') + '</span>' +
-          '<span title="均分 ' + avg(w) + '">⭐ ' + avg(w) + '</span>' +
-        '</div>' +
-        detailHtml;
-    }
+    d.innerHTML = buildWordRowHtml(w, key, { viewMode, noHandle, wordSearchQuery }) + detailHtml;
 
     if (!viewMode && !noHandle) {
       d.addEventListener('dragstart', function (e) {

@@ -190,7 +190,7 @@ function startDictation() {
   dict.repeatIntervalMs = (parseInt($('repeatIntervalSec').value, 10) || 0) * 1000;
   // 报词方式默认取「第一个选中章节」的设置；多章节时给出提示
   const selChs = data.chapters.filter(c => c.selected);
-  if (!selChs.length) { toast('未勾选任何章节，不能开始默写'); return; } // 无选中章节不可开始默写
+  if (!selChs.length) { showAlert('未选中任何章节，不能开始默写'); return; } // 无选中章节不可开始默写
   const firstCh = selChs[0];
   let dl = getDefaultDictLang(); // 默认按设置界面报词方式
   if (firstCh) {
@@ -228,8 +228,10 @@ function startDictation() {
   runDictation();
 }
 
-// 顶部快捷“开始默写”：弹出默写弹窗并立即启动
+// 顶部快捷“开始默写”：弹出默写弹窗并立即启动；未选中任何章节时阻止弹窗
 function startDictQuick() {
+  const selChs = data.chapters.filter(c => c.selected);
+  if (!selChs.length) { showAlert('未选中任何章节，不能开始默写'); return; } // 无选中章节不弹默写对话框
   openDict();
   setTimeout(function () { startDictation(); }, 350);
 }
