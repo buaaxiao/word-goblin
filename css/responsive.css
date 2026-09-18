@@ -5,91 +5,96 @@
 
 /* ===== 数据操作按钮：窄屏隐藏文字 ===== */
 @media (max-width: 420px) {
-    .data-ops-label {
-        display: none;
-    }
+  .data-ops-label {
+    display: none;
+  }
 
-    .data-ops {
-        padding: 0 10px;
-    }
+  .data-ops {
+    padding: 0 10px;
+  }
 }
 
 /* ===== 统计卡片 ===== */
 @media (max-width: 480px) {
-    .stats-card {
-        padding: 12px 10px;
-    }
+  .stats-card {
+    padding: 12px 10px;
+  }
 
-    .stat-num {
-        font-size: 19px;
-    }
+  .stat-num {
+    font-size: 19px;
+  }
 
-    .stat-label {
-        font-size: 10.5px;
-    }
+  .stat-label {
+    font-size: 10.5px;
+  }
 }
 
 /* ===== 单词表格：窄屏隐藏两个日期列 ===== */
 @media (max-width: 640px) {
+  /* 编辑模式：8 列（手柄 + 单词 + 对 + 错 + 均分 + 编辑 + 删除） */
+  .word-table-header,
+  .word-item {
+    grid-template-columns: var(--col-handle) minmax(0, 1fr) var(--col-num) var(
+        --col-num
+      ) var(--col-score) var(--col-action) var(--col-action);
+  }
 
-    .word-table-header,
-    .word-item {
-        grid-template-columns:
-            var(--col-handle) minmax(0, 1fr) var(--col-num) var(--col-num) var(--col-score) var(--col-actions);
-    }
+  /* 查看模式：同上，仍带手柄 */
+  #wordBody.list-view .word-table-header,
+  #wordBody.list-view .word-item {
+    grid-template-columns: var(--col-handle) minmax(0, 1fr) var(--col-num) var(
+        --col-num
+      ) var(--col-score) var(--col-action) var(--col-action);
+  }
 
-    #wordBody.list-view .word-table-header,
-    #wordBody.list-view .word-item {
-        grid-template-columns:
-            minmax(0, 1fr) var(--col-num) var(--col-num) var(--col-score);
-    }
+  /* 多章节 / 去重：7 列（无手柄） */
+  #wordBody.multi-ch .word-table-header,
+  #wordBody.multi-ch .word-item {
+    grid-template-columns: minmax(0, 1fr) var(--col-num) var(--col-num) var(
+        --col-score
+      ) var(--col-action) var(--col-action);
+  }
 
-    #wordBody.multi-ch .word-table-header,
-    #wordBody.multi-ch .word-item {
-        grid-template-columns:
-            minmax(0, 1fr) var(--col-num) var(--col-num) var(--col-score) var(--col-actions);
-    }
-
-    .th-date,
-    .wstat-date {
-        display: none;
-    }
+  .th-date,
+  .wstat-date {
+    display: none;
+  }
 }
 
 /* ===== 小屏微调 ===== */
 @media (max-width: 480px) {
-    .big {
-        font-size: 34px;
-        padding: 26px 10px;
-    }
+  .big {
+    font-size: 34px;
+    padding: 26px 10px;
+  }
 
-    .nav-btn {
-        min-width: 70px;
-        padding: 10px 14px;
-    }
+  .nav-btn {
+    min-width: 70px;
+    padding: 14px;
+  }
 
-    .nav-btn .nav-label {
-        font-size: 13px;
-    }
+  .nav-btn .nav-label {
+    font-size: 13px;
+  }
 
-    .appbar h1 {
-        font-size: 17px;
-    }
+  .appbar h1 {
+    font-size: 17px;
+  }
 
-    .theme-tag {
-        padding: 5px 9px;
-        font-size: 12px;
-    }
+  .theme-tag {
+    padding: 5px 9px;
+    font-size: 12px;
+  }
 
-    .theme-tag .theme-text {
-        display: none;
-    }
+  .theme-tag .theme-text {
+    display: none;
+  }
 
-    main {
-        padding: 10px;
-    }
+  main {
+    padding: 10px;
+  }
 
-    .card {
-        padding: 14px;
-    }
+  .card {
+    padding: 14px;
+  }
 }

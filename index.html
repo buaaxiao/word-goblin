@@ -87,6 +87,18 @@
       </div>
 
       <div class="card">
+
+        <!-- ★ 章节搜索框：放在标题栏上方，只此一处 -->
+        <div class="combo-wrap search-wrap" id="chapterCombo">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="chapterSearch" autocomplete="off" spellcheck="false" oninput="onChapterSearch()"
+            onfocus="openChapterCombo()" onkeydown="onChapterSearchKeydown(event)">
+          <!-- 打字机提示层（覆盖在 input 上） -->
+          <span class="chapter-search-hint" id="chapterSearchHint"></span>
+          <button class="search-clear" onclick="clearChapterSearch(event)" title="清空">✕</button>
+          <div class="combo-panel hidden" id="chapterComboPanel" role="listbox"></div>
+        </div>
+
         <div class="collapse-header" id="chapterHeader" onclick="toggleSection('chapter')">
           <span class="collapse-chevron">▼</span>
           <span class="collapse-arrow" id="chapterArrow">📂</span>
@@ -95,22 +107,16 @@
           <button id="modeBtnChapter" class="list-mode-btn" title="切换编辑/查看模式"
             onclick="event.stopPropagation(); toggleChapterMode()">👁 查看</button>
         </div>
-        <div class="collapse-body collapsed" id="chapterBody">
-          <div class="search-wrap" id="chapterSearchWrap">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="chapterSearch" placeholder="搜索章节…" oninput="onChapterSearch()">
-            <button class="search-clear" onclick="clearChapterSearch(event)" title="清空">✕</button>
-          </div>
 
+        <div class="collapse-body collapsed" id="chapterBody">
           <div class="chapter-table-header">
-            <span class="th-check-col">
-              <span class="th-handle-spacer">≡</span>
-              <input type="checkbox" id="selectAllChapters" onchange="toggleSelectAllChapters(this.checked)"
-                title="全选 / 取消全选">
-            </span>
+            <span class="th-handle-spacer">≡</span>
+            <input type="checkbox" id="selectAllChapters" onchange="toggleSelectAllChapters(this.checked)"
+              title="全选 / 取消全选">
             <span class="th-name" title="章节名称">章节名称</span>
             <span class="th-count" title="该章节包含的单词数">单词数</span>
-            <span class="th-actions" title="操作">操作</span>
+            <span class="th-action-edit" title="编辑">编辑</span>
+            <span class="th-action-del" title="删除">删除</span>
           </div>
           <div id="chapterList"></div>
           <p class="hint-text" id="dataSourceHint"></p>
@@ -143,7 +149,8 @@
             <span class="th-num" title="答错次数">❌ 错</span>
             <span class="th-date" title="最后答错日期">最后错</span>
             <span class="th-score" title="平均得分">⭐ 均分</span>
-            <span class="th-actions" title="操作">操作</span>
+            <span class="th-action-edit" title="编辑">编辑</span>
+            <span class="th-action-del" title="删除">删除</span>
           </div>
           <div id="wordList"></div>
         </div>
@@ -172,8 +179,10 @@
   <script src="js/core.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/reports.js"></script>
-  <script src="js/chapters.js"></script>
   <script src="js/words.js"></script>
+  <script src="js/chapters.js"></script>
+  <script src="js/chapters-modals.js"></script>
+  <script src="js/chapters-search.js"></script>
   <script src="js/io.js"></script>
   <script src="js/dictation.js"></script>
   <script src="js/main.js"></script>

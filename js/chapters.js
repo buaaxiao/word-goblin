@@ -1,21 +1,79 @@
 /* ===================================================================
- * js/chapters.js - 章节列表 / 排序 / 全选
- * 自 index.html 内联脚本拆分而来；所有函数保持为全局 API（兼容内联 onclick）。
+ * js/chapters.js - 章节列表核心
+ *   - listVisibleSet 与相关工具
+ *   - 章节列表渲染 / 选择 / 切换 / 增删
+ *   - 拖拽排序
+ *   - 表头复选框（全选/半选/未选、禁用态）
+ *
+ * 弹窗相关见 chapters-modals.js
+ * 搜索下拉 + 打字机提示见 chapters-search.js
  * =================================================================== */
-/* ===== 章节表头：全选 / 取消全选 ===== */
 
-// 更新表头复选框状态（全选 / 半选 / 未选）
+/* =================================================================
+ * 列表显示集合：决定章节列表显示哪些章节
+ *   - 存章节名称（不是索引）：data.chapters 增删改排序后名称稳定
+ *   - 由「下拉面板」的勾选/取消、全选/全取消更新
+ *   - 章节列表自身的表头复选框、行内复选框不改变它
+ * ================================================================= */
+let listVisibleSet = new Set(); // Set<chapterName>
+
+// 数据加载 / 导入 / 同步后重建：把当前 selected 的章节名加入集合
+function initListVisibleSet() {
+  listVisibleSet.clear();
+  data.chapters.forEach((ch) => {
+    if (ch.selected) listVisibleSet.add(ch.name);
+  });
+}
+
+// 防御性清洗：移除 data.chapters 里已不存在的名称
+function pruneListVisibleSet() {
+  const existing = new Set(data.chapters.map((ch) => ch.name));
+  const next = new Set();
+  listVisibleSet.forEach((name) => {
+    if (existing.has(name)) next.add(name);
+  });
+  listVisibleSet = next;
+}
+
+// 判断某个章节是否在列表里可见
+function isChapterVisible(ch) {
+  return listVisibleSet.has(ch.name);
+}
+
+// 与 renderChapterList 一致的「列表可见章节」
+function getVisibleChapters() {
+  const q = (chapterSearchQuery || "").toLowerCase();
+  return data.chapters
+    .map((ch, ci) => ({ ch, ci }))
+    .filter(({ ch }) => {
+      if (!isChapterVisible(ch)) return false;
+      if (q && ch.name.toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+}
+
+/* ===== 章节表头：全选 / 取消全选（章节列表自身） ===== */
+
+// 更新章节列表表头复选框状态（基于列表可见章节的全选 / 半选 / 未选）
+//   - 列表无可见章节 → 禁用
+//   - 列表有可见章节 → 启用，并根据勾选情况显示
 function updateChapterHeaderCheckbox() {
-  const cb = $('selectAllChapters');
+  const cb = $("selectAllChapters");
   if (!cb) return;
-  const total = data.chapters.length;
-  if (total === 0) {
+
+  const visibleList = getVisibleChapters();
+
+  if (visibleList.length === 0) {
     cb.checked = false;
     cb.indeterminate = false;
+    cb.disabled = true;
     return;
   }
-  const selected = data.chapters.filter(c => c.selected).length;
-  if (selected === total) {
+
+  cb.disabled = false;
+
+  const selected = visibleList.filter(({ ch }) => ch.selected).length;
+  if (selected === visibleList.length) {
     cb.checked = true;
     cb.indeterminate = false;
   } else if (selected === 0) {
@@ -23,18 +81,28 @@ function updateChapterHeaderCheckbox() {
     cb.indeterminate = false;
   } else {
     cb.checked = false;
-    cb.indeterminate = true; // 半选状态
+    cb.indeterminate = true;
   }
 }
 
-// 表头首个复选框：勾选 = 全选，取消勾选 = 取消全选（半选状态再点击也视为全选）
+// 章节列表表头复选框：只改 selected，不动 listVisibleSet
+//   只对「列表里当前可见的章节」生效
 function toggleSelectAllChapters(checked) {
-  if (!data.chapters.length) { toast('暂无章节'); return; }
-  data.chapters.forEach(ch => ch.selected = checked);
+  const visibleList = getVisibleChapters();
+  if (!visibleList.length) {
+    toast("暂无章节");
+    return;
+  }
+
+  visibleList.forEach(({ ci }) => {
+    data.chapters[ci].selected = !!checked;
+    // ★ 不动 listVisibleSet —— 章节列表条数不变
+  });
+
   saveData();
   renderChapterList();
   renderWords();
-  const cb = $('selectAllChapters');
+  const cb = $("selectAllChapters");
   if (cb) cb.indeterminate = false;
 }
 
@@ -42,88 +110,152 @@ let dragSrcIndex = null;
 let dragOverIndex = null;
 
 function renderChapterList() {
-  const el = $('chapterList');
-  el.innerHTML = '';
-  const badge = $('chapterCountBadge');
+  // ★ 每次渲染前先清理悬空名称（防御性）
+  pruneListVisibleSet();
+
+  const el = $("chapterList");
+  el.innerHTML = "";
+  const badge = $("chapterCountBadge");
 
   let filtered = data.chapters.map((ch, ci) => ({ ch, ci }));
+
   if (chapterSearchQuery) {
     const q = chapterSearchQuery.toLowerCase();
-    filtered = filtered.filter(item => item.ch.name.toLowerCase().indexOf(q) >= 0);
+    filtered = filtered.filter(
+      (item) =>
+        isChapterVisible(item.ch) && item.ch.name.toLowerCase().indexOf(q) >= 0,
+    );
+  } else {
+    filtered = filtered.filter((item) => isChapterVisible(item.ch));
   }
 
   if (badge) {
     if (chapterSearchQuery) {
-      badge.textContent = '找到 ' + filtered.length + ' 个';
+      badge.textContent = "找到 " + filtered.length + " 个";
     } else {
-      const selected = data.chapters.filter(c => c.selected).length;
-      badge.textContent = data.chapters.length + ' 章节' + (selected ? ' · 选 ' + selected : '');
+      const selected = data.chapters.filter((c) => c.selected).length;
+      badge.textContent =
+        data.chapters.length + " 章节" + (selected ? " · 选 " + selected : "");
     }
   }
 
   if (!filtered.length) {
-    el.innerHTML = '<div class="empty-state searching">未找到匹配的章节</div>';
+    if (chapterSearchQuery) {
+      el.innerHTML =
+        '<div class="empty-state searching">未找到匹配的章节</div>';
+    } else if (listVisibleSet.size === 0) {
+      el.innerHTML =
+        '<div class="empty-state">请从搜索框下拉列表中勾选章节</div>';
+    } else {
+      el.innerHTML = '<div class="empty-state">暂无章节</div>';
+    }
     updateChapterHeaderCheckbox();
     updateStats();
     return;
   }
 
   filtered.forEach(({ ch, ci }) => {
-    const d = document.createElement('div');
-    const viewMode = chapterMode === 'view';
-    d.className = 'chapter-item' + (ci === currentChapter ? ' active' : '') + (viewMode ? ' view-mode' : '');
-    d.setAttribute('draggable', viewMode ? 'false' : 'true');
+    const d = document.createElement("div");
+    const viewMode = chapterMode === "view";
+    d.className =
+      "chapter-item" +
+      (ci === currentChapter ? " active" : "") +
+      (viewMode ? " view-mode" : "");
+    d.setAttribute("draggable", viewMode ? "false" : "true");
     d.dataset.index = ci;
-    d.innerHTML = viewMode
-      ? '<span class="name" title="' + esc(ch.name) + '" onclick="selectChapter(' + ci + ')">' + highlightText(ch.name, chapterSearchQuery) + '</span>' +
-        '<span class="count" title="' + ch.words.length + ' 个单词">' + ch.words.length + ' 词</span>'
-      : '<span class="drag-handle" title="拖动排序">≡</span>' +
-        '<input type="checkbox" ' + (ch.selected ? 'checked' : '') + ' onchange="toggleChapter(' + ci + ', this.checked)">' +
-        '<span class="name" title="' + esc(ch.name) + '" onclick="selectChapter(' + ci + ')">' + highlightText(ch.name, chapterSearchQuery) + '</span>' +
-        '<span class="count" title="' + ch.words.length + ' 个单词">' + ch.words.length + ' 词</span>' +
-        '<span class="ch-actions">' +
-          '<button class="icon-btn" onclick="renameChapter(' + ci + ')" title="修改">✎</button>' +
-          '<button class="icon-btn" onclick="deleteChapter(' + ci + ')" title="删除">🗑</button>' +
-        '</span>';
+
+    const handleHtml = viewMode
+      ? '<span class="drag-handle disabled" title="查看模式下不可拖拽">≡</span>'
+      : '<span class="drag-handle" title="拖动排序">≡</span>';
+
+    const checkboxHtml =
+      '<input type="checkbox" ' +
+      (ch.selected ? "checked " : "") +
+      'onchange="toggleChapter(' +
+      ci +
+      ', this.checked)">';
+
+    const nameHtml =
+      '<span class="name" title="' +
+      esc(ch.name) +
+      '" onclick="selectChapter(' +
+      ci +
+      ')">' +
+      highlightText(ch.name, chapterSearchQuery) +
+      "</span>";
+
+    const countHtml =
+      '<span class="count" title="' +
+      ch.words.length +
+      ' 个单词">' +
+      ch.words.length +
+      " 词" +
+      "</span>";
+
+    const editBtnHtml = viewMode
+      ? '<button class="icon-btn disabled" disabled title="查看模式下不可操作">✎</button>'
+      : '<button class="icon-btn" onclick="renameChapter(' +
+        ci +
+        ')" title="修改">✎</button>';
+
+    const delBtnHtml = viewMode
+      ? '<button class="icon-btn disabled" disabled title="查看模式下不可操作">🗑</button>'
+      : '<button class="icon-btn" onclick="deleteChapter(' +
+        ci +
+        ')" title="删除">🗑</button>';
+
+    d.innerHTML =
+      handleHtml +
+      checkboxHtml +
+      nameHtml +
+      countHtml +
+      editBtnHtml +
+      delBtnHtml;
 
     if (!viewMode) {
-      d.addEventListener('dragstart', function (e) {
+      d.addEventListener("dragstart", function (e) {
         dragSrcIndex = ci;
-        d.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', ci);
-        try { e.dataTransfer.setData('text/html', d.innerHTML); } catch (ex) {}
+        d.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", ci);
+        try {
+          e.dataTransfer.setData("text/html", d.innerHTML);
+        } catch (ex) {}
       });
-      d.addEventListener('dragend', function () {
-        d.classList.remove('dragging');
+      d.addEventListener("dragend", function () {
+        d.classList.remove("dragging");
         clearDragOverStyles();
         dragSrcIndex = null;
         dragOverIndex = null;
       });
-      d.addEventListener('dragover', function (e) {
+      d.addEventListener("dragover", function (e) {
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
+        e.dataTransfer.dropEffect = "move";
         if (dragSrcIndex === null || dragSrcIndex === ci) return;
         clearDragOverStyles();
         const rect = d.getBoundingClientRect();
         const midY = rect.top + rect.height / 2;
         if (e.clientY < midY) {
-          d.classList.add('drag-over');
-          dragOverIndex = { index: ci, position: 'before' };
+          d.classList.add("drag-over");
+          dragOverIndex = { index: ci, position: "before" };
         } else {
-          d.classList.add('drag-over-bottom');
-          dragOverIndex = { index: ci, position: 'after' };
+          d.classList.add("drag-over-bottom");
+          dragOverIndex = { index: ci, position: "after" };
         }
       });
-      d.addEventListener('dragleave', function () {
-        d.classList.remove('drag-over', 'drag-over-bottom');
+      d.addEventListener("dragleave", function () {
+        d.classList.remove("drag-over", "drag-over-bottom");
       });
-      d.addEventListener('drop', function (e) {
+      d.addEventListener("drop", function (e) {
         e.preventDefault();
         e.stopPropagation();
         if (dragSrcIndex === null || dragSrcIndex === ci) return;
         if (!dragOverIndex) return;
-        performReorder(dragSrcIndex, dragOverIndex.index, dragOverIndex.position);
+        performReorder(
+          dragSrcIndex,
+          dragOverIndex.index,
+          dragOverIndex.position,
+        );
       });
     }
 
@@ -135,8 +267,8 @@ function renderChapterList() {
 }
 
 function clearDragOverStyles() {
-  document.querySelectorAll('.chapter-item').forEach(item => {
-    item.classList.remove('drag-over', 'drag-over-bottom');
+  document.querySelectorAll(".chapter-item").forEach((item) => {
+    item.classList.remove("drag-over", "drag-over-bottom");
   });
 }
 
@@ -145,7 +277,7 @@ function performReorder(srcIndex, targetIndex, position) {
   const item = data.chapters.splice(srcIndex, 1)[0];
   let insertIndex = targetIndex;
   if (srcIndex < targetIndex) insertIndex--;
-  if (position === 'after') insertIndex++;
+  if (position === "after") insertIndex++;
   if (insertIndex < 0) insertIndex = 0;
   if (insertIndex > data.chapters.length) insertIndex = data.chapters.length;
   data.chapters.splice(insertIndex, 0, item);
@@ -153,23 +285,40 @@ function performReorder(srcIndex, targetIndex, position) {
   if (currentChapter === srcIndex) {
     currentChapter = insertIndex;
   } else {
-    if (srcIndex < currentChapter && insertIndex >= currentChapter) currentChapter--;
-    else if (srcIndex > currentChapter && insertIndex <= currentChapter) currentChapter++;
+    if (srcIndex < currentChapter && insertIndex >= currentChapter)
+      currentChapter--;
+    else if (srcIndex > currentChapter && insertIndex <= currentChapter)
+      currentChapter++;
+  }
+
+  // listVisibleSet 存名称，排序不影响
+
+  saveData();
+  renderChapterList();
+  renderWords();
+  toast("章节排序已更新");
+}
+
+// 点击章节行：已勾选 → 取消勾选；未勾选 → 勾选并设为当前章节
+function selectChapter(ci) {
+  const ch = data.chapters[ci];
+  if (!ch) return;
+
+  if (ch.selected) {
+    ch.selected = false;
+    listVisibleSet.delete(ch.name);
+  } else {
+    ch.selected = true;
+    currentChapter = ci;
+    listVisibleSet.add(ch.name);
   }
 
   saveData();
   renderChapterList();
   renderWords();
-  toast('章节排序已更新');
 }
 
-function selectChapter(ci) {
-  currentChapter = ci;
-  data.chapters[ci].selected = true; // 单击即选中，复选框标记为勾选
-  saveData();
-  renderChapterList();
-  renderWords();
-}
+// 章节列表行内复选框：只改 selected，不动 listVisibleSet
 function toggleChapter(ci, checked) {
   data.chapters[ci].selected = checked;
   saveData();
@@ -178,121 +327,71 @@ function toggleChapter(ci, checked) {
 }
 
 function addChapter(name, dictLang) {
-  name = (name || '').trim();
-  if (!name) { toast('请输入章节名称'); return; }
-  if (name.length > 30) { toast('章节名称不能超过 30 个字符'); return; }
-  if (data.chapters.some(c => c.name === name)) {
-    toast('章节「' + name + '」已存在，只能通过编辑修改，不能重复添加');
+  name = (name || "").trim();
+  if (!name) {
+    toast("请输入章节名称");
     return;
   }
-  data.chapters.push({ name: name, selected: false, words: [], dictLang: typeof dictLang === 'number' ? dictLang : getDefaultDictLang() }); // dictLang: 0=English 1=汉语，未指定时按设置界面默认
-  currentChapter = data.chapters.length - 1;
-  saveData(); renderChapterList(); renderWords();
-}
-// ===== 统一新增弹窗：上段新增章节、下段新增单词 =====
-function openAddModal() {
-  const chOptions = data.chapters.map((c, i) =>
-    '<option value="' + i + '"' + (i === currentChapter ? ' selected' : '') + '>' + esc(c.name) + '</option>'
-  ).join('');
-  openModal('新增',
-    '<div class="add-block">' +
-      '<div class="add-title">📂 新增章节</div>' +
-      '<div class="add-inline">' +
-        '<input id="addChapterName" class="input" placeholder="输入章节名称">' +
-        '<button class="primary" onclick="addChapterFromModal()">添加</button>' +
-      '</div>' +
-      '<label>报词方式</label>' +
-      '<select id="addChapterLang">' +
-        '<option value="0"' + (getDefaultDictLang() === 1 ? '' : ' selected') + '>English</option>' +
-        '<option value="1"' + (getDefaultDictLang() === 1 ? ' selected' : '') + '>汉语</option>' +
-      '</select>' +
-    '</div>' +
-    '<div class="add-divider"></div>' +
-    '<div class="add-block">' +
-      '<div class="add-title">📝 新增单词</div>' +
-      '<label>所属章节</label>' +
-      '<select id="addWordChapter">' + chOptions + '</select>' +
-      '<label>单词/词语</label>' +
-      '<input id="addWordText" class="input" placeholder="单词/词语">' +
-      '<label>中文意思（英语单词填，可留空）</label>' +
-      '<input id="addWordMeaning" class="input" placeholder="中文意思">' +
-      '<button class="primary" style="width:100%;margin-top:2px" onclick="addWordFromModal()">添加单词</button>' +
-    '</div>');
-  const t = $('addChapterName');
-  if (t) t.focus();
-}
-// 刷新“所属章节”下拉，沿用当前选中章节
-function refreshAddWordSelect() {
-  const sel = $('addWordChapter');
-  if (!sel) return;
-  const chOptions = data.chapters.map((c, i) =>
-    '<option value="' + i + '"' + (i === currentChapter ? ' selected' : '') + '>' + esc(c.name) + '</option>'
-  ).join('');
-  sel.innerHTML = chOptions;
-}
-function addChapterFromModal() {
-  const inp = $('addChapterName');
-  const langEl = $('addChapterLang');
-  addChapter(inp ? inp.value : '', langEl ? parseInt(langEl.value, 10) : getDefaultDictLang());
-  if (inp && inp.value.trim()) inp.value = '';
-  refreshAddWordSelect(); // 新章节加入下拉
-  if (inp) inp.focus();
-}
-function addWordFromModal() {
-  const text = $('addWordText') ? $('addWordText').value : '';
-  const meaning = $('addWordMeaning') ? $('addWordMeaning').value : '';
-  const sel = $('addWordChapter');
-  addWord(text, meaning, sel ? parseInt(sel.value, 10) : NaN);
-  const t = $('addWordText'), m = $('addWordMeaning');
-  if (t) t.value = '';
-  if (m) m.value = '';
-  if (t) t.focus();
-}
-function deleteChapter(ci) {
-  if (!confirm('确定删除章节「' + data.chapters[ci].name + '」及其所有单词吗？')) return;
-  data.chapters.splice(ci, 1);
-  if (currentChapter >= data.chapters.length) currentChapter = Math.max(0, data.chapters.length - 1);
-  saveData(); renderChapterList(); renderWords();
-}
-// data.json 共享词库中各章节的报词方式（name -> dictLang），打开修改弹窗时优先取用
-let cloudDictLang = null;
-function loadCloudDictLang() {
-  if (cloudDictLang !== null) return Promise.resolve(cloudDictLang);
-  return fetch('data.json?_=' + Date.now())
-    .then(r => { if (!r.ok) throw new Error('fetch'); return r.json(); })
-    .then(obj => {
-      const m = new Map();
-      (obj.chapters || []).forEach(ch => { if (typeof ch.dictLang === 'number') m.set(ch.name, ch.dictLang); });
-      cloudDictLang = m;
-      return m;
-    })
-    .catch(() => { cloudDictLang = new Map(); return cloudDictLang; });
-}
-function renameChapter(ci) {
-  const ch = data.chapters[ci];
-  const localDl = (typeof ch.dictLang === 'number') ? ch.dictLang : getDefaultDictLang(); // 旧数据无 dictLang 时按设置界面默认
-  // 报词方式初始值优先取 data.json 同名章节的 dictLang，无匹配时回退本地值
-  loadCloudDictLang().then(m => {
-    const dl = m.has(ch.name) ? m.get(ch.name) : localDl;
-    openModal('修改章节',
-      '<label>章节名称</label>' +
-      '<input id="mInput" class="input" value="' + esc(ch.name) + '" placeholder="章节名称">' +
-      '<label>报词方式</label>' +
-      '<select id="mLang">' +
-        '<option value="0"' + (dl === 1 ? '' : ' selected') + '>English</option>' +
-        '<option value="1"' + (dl === 1 ? ' selected' : '') + '>汉语</option>' +
-      '</select>' +
-      '<div class="row"><button onclick="closeModal()">取消</button>' +
-      '<button class="primary" onclick="doRenameChapter(' + ci + ')">确定</button></div>');
+  if (name.length > 30) {
+    toast("章节名称不能超过 30 个字符");
+    return;
+  }
+  if (data.chapters.some((c) => c.name === name)) {
+    toast("章节「" + name + "」已存在，只能通过编辑修改，不能重复添加");
+    return;
+  }
+  data.chapters.push({
+    name: name,
+    selected: false,
+    words: [],
+    dictLang: typeof dictLang === "number" ? dictLang : getDefaultDictLang(),
   });
+  currentChapter = data.chapters.length - 1;
+  saveData();
+  renderChapterList();
+  renderWords();
 }
-function doRenameChapter(ci) {
-  const v = $('mInput').value.trim();
-  if (!v) { toast('名称不能为空'); return; }
-  const dup = data.chapters.findIndex((c, i) => c.name === v && i !== ci);
-  if (dup >= 0) { toast('已存在同名章节'); return; }
-  const ml = $('mLang');
-  if (ml) data.chapters[ci].dictLang = ml.value === '1' ? 1 : 0;
-  data.chapters[ci].name = v;
-  saveData(); renderChapterList(); renderWords(); closeModal();
+
+function deleteChapter(ci) {
+  const ch = data.chapters[ci];
+  if (!ch) return;
+
+  const wordCount = (ch.words || []).length;
+  const wordInfo =
+    wordCount > 0
+      ? "<br>该章节包含 <b>" + wordCount + "</b> 个单词，将一并删除。"
+      : "";
+
+  confirmDialog(
+    "删除章节",
+    "确定删除章节 <b>" +
+      esc(ch.name) +
+      "</b> 吗？" +
+      wordInfo +
+      "<br>" +
+      "此操作不可撤销。",
+    function () {
+      doDeleteChapter(ci);
+    },
+  );
+}
+
+function doDeleteChapter(ci) {
+  const ch = data.chapters[ci];
+  if (!ch) return;
+
+  // 同步移除该章节名
+  listVisibleSet.delete(ch.name);
+
+  data.chapters.splice(ci, 1);
+
+  if (currentChapter >= data.chapters.length) {
+    currentChapter = Math.max(0, data.chapters.length - 1);
+  }
+
+  saveData();
+  renderChapterList();
+  renderWords();
+  updateStats();
+  toast("已删除章节");
 }

@@ -14,8 +14,8 @@ window.__PARTIAL_statsModal = `
   <div class="set-group">
     <h3>默写历史<span class="collapse-badge" id="historyCountBadge" style="margin-left:auto;">0 次</span></h3>
     <div id="historyList" class="history-list"></div>
-    <div class="row" id="historyActions" style="margin-top:10px;display:none;">
-      <button class="danger" onclick="clearHistory()">🗑 清空历史</button>
+    <div class="row" id="historyActions" style="margin-top:10px;display:none;justify-content:center;">
+      <button class="danger" onclick="confirmClearHistory()">🗑 清空历史</button>
     </div>
   </div>
 </div>

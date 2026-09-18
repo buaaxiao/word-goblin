@@ -37,9 +37,11 @@ window.__PARTIAL_dictModal = `
   </div>
 
   <div class="card hidden" id="reviewCard">
-    <h2>默写完成，请标记错误的单词/词语</h2>
-    <div id="reviewList"></div>
-    <div class="row">
+    <div class="settings-head">
+      <h2>🎉 默写完成，请标记错误</h2>
+    </div>
+    <div id="reviewList" class="review-list"></div>
+    <div class="row review-actions">
       <button class="ok" onclick="completeDictation()">✅ 标记完成，出分数</button>
     </div>
   </div>

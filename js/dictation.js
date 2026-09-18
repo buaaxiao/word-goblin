@@ -5,12 +5,16 @@
 
 let voiceList = [];
 let voicesReady = false;
-let lastSpeechError = '';
+let lastSpeechError = "";
 
 function loadVoices() {
-  if (!('speechSynthesis' in window)) return;
+  if (!("speechSynthesis" in window)) return;
   const collect = () => {
-    try { voiceList = speechSynthesis.getVoices(); } catch (e) { voiceList = []; }
+    try {
+      voiceList = speechSynthesis.getVoices();
+    } catch (e) {
+      voiceList = [];
+    }
     voicesReady = voiceList.length > 0;
   };
   collect();
@@ -23,11 +27,14 @@ function loadVoices() {
 function pickVoice(lang) {
   try {
     if (!voiceList.length) voiceList = speechSynthesis.getVoices();
-  } catch (e) { voiceList = []; }
+  } catch (e) {
+    voiceList = [];
+  }
   if (!voiceList.length) return null;
-  const norm = s => String(s).replace('_', '-').toLowerCase();
-  const base = norm(lang || '').slice(0, 2);
-  let best = null, bestScore = 10;
+  const norm = (s) => String(s).replace("_", "-").toLowerCase();
+  const base = norm(lang || "").slice(0, 2);
+  let best = null,
+    bestScore = 10;
   for (const v of voiceList) {
     const l = norm(v.lang);
     let score;
@@ -36,16 +43,24 @@ function pickVoice(lang) {
     else if (v.default) score = 2;
     else score = 3;
     if (!v.localService) score += 0.5;
-    if (score < bestScore) { bestScore = score; best = v; }
+    if (score < bestScore) {
+      bestScore = score;
+      best = v;
+    }
   }
   return best;
 }
 
 function speak(text, lang) {
-  return new Promise(resolve => {
-    if (!('speechSynthesis' in window)) { resolve(); return; }
+  return new Promise((resolve) => {
+    if (!("speechSynthesis" in window)) {
+      resolve();
+      return;
+    }
     const doSpeak = () => {
-      try { speechSynthesis.resume(); } catch (e) { }
+      try {
+        speechSynthesis.resume();
+      } catch (e) {}
 
       const u = new SpeechSynthesisUtterance(text);
       const v = pickVoice(lang);
@@ -53,21 +68,42 @@ function speak(text, lang) {
         u.voice = v;
         u.lang = v.lang;
       } else {
-        u.lang = lang || 'zh-CN';
+        u.lang = lang || "zh-CN";
       }
       u.rate = 0.9;
       let done = false;
-      const finish = () => { if (!done) { done = true; resolve(); } };
+      const finish = () => {
+        if (!done) {
+          done = true;
+          resolve();
+        }
+      };
       u.onend = finish;
-      u.onerror = (e) => { lastSpeechError = (e && e.error) || 'unknown'; finish(); };
+      u.onerror = (e) => {
+        lastSpeechError = (e && e.error) || "unknown";
+        finish();
+      };
       setTimeout(finish, Math.max(3000, text.length * 500 + 1500));
-      try { speechSynthesis.speak(u); } catch (e) { finish(); }
+      try {
+        speechSynthesis.speak(u);
+      } catch (e) {
+        finish();
+      }
     };
-    if (voicesReady) { doSpeak(); return; }
+    if (voicesReady) {
+      doSpeak();
+      return;
+    }
     let tries = 0;
     const wait = () => {
-      try { voiceList = speechSynthesis.getVoices(); voicesReady = voiceList.length > 0; } catch (e) { }
-      if (voicesReady || ++tries > 12) { doSpeak(); return; }
+      try {
+        voiceList = speechSynthesis.getVoices();
+        voicesReady = voiceList.length > 0;
+      } catch (e) {}
+      if (voicesReady || ++tries > 12) {
+        doSpeak();
+        return;
+      }
       setTimeout(wait, 100);
     };
     wait();
@@ -75,26 +111,51 @@ function speak(text, lang) {
 }
 
 function testSpeech() {
-  if (!('speechSynthesis' in window)) { toast('当前浏览器不支持语音'); return; }
-  try { speechSynthesis.resume(); } catch (e) { }
-  const zh = '你好，我是单词精灵，现在测试发音。';
+  if (!("speechSynthesis" in window)) {
+    toast("当前浏览器不支持语音");
+    return;
+  }
+  try {
+    speechSynthesis.resume();
+  } catch (e) {}
+  const zh = "你好，我是单词精灵，现在测试发音。";
   const u = new SpeechSynthesisUtterance(zh);
-  const v = pickVoice('zh-CN');
-  if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = 'zh-CN'; }
+  const v = pickVoice("zh-CN");
+  if (v) {
+    u.voice = v;
+    u.lang = v.lang;
+  } else {
+    u.lang = "zh-CN";
+  }
   u.rate = 0.9;
-  u.onend = () => toast('发音正常');
-  u.onerror = () => toast('发音失败：请检查系统 TTS 中文语音是否已安装启用');
-  try { speechSynthesis.speak(u); } catch (e) { toast('发音失败：' + e.message); }
-  toast('正在测试发音…');
+  u.onend = () => toast("发音正常");
+  u.onerror = () => toast("发音失败：请检查系统 TTS 中文语音是否已安装启用");
+  try {
+    speechSynthesis.speak(u);
+  } catch (e) {
+    toast("发音失败：" + e.message);
+  }
+  toast("正在测试发音…");
 }
 
 const dict = {
-  running: false, paused: false, phase: 'idle',
-  items: [], marks: [], idx: 0,
-  intervalMs: 12000, repeatCount: 3, repeatIntervalMs: 2000,
-  speakChinese: false, mode: 0,
-  selectedChapters: [], startTime: 0, resumeResolve: null,
-  skipResolve: null, prevResolve: null, replayResolve: null,
+  running: false,
+  paused: false,
+  phase: "idle",
+  items: [],
+  marks: [],
+  idx: 0,
+  intervalMs: 12000,
+  repeatCount: 3,
+  repeatIntervalMs: 2000,
+  speakChinese: false,
+  mode: 0,
+  selectedChapters: [],
+  startTime: 0,
+  resumeResolve: null,
+  skipResolve: null,
+  prevResolve: null,
+  replayResolve: null,
   currentRepeat: 0,
 };
 
@@ -115,8 +176,9 @@ function collectItems() {
       const w = ch.words[wi];
       if (dict.mode === 1 && w.wrongCount === 0) continue;
       if (dict.mode === 2) {
-        const errorNewer = !!w.lastErrorDate &&
-          (w.lastCorrectDate === '' || w.lastErrorDate > w.lastCorrectDate);
+        const errorNewer =
+          !!w.lastErrorDate &&
+          (w.lastCorrectDate === "" || w.lastErrorDate > w.lastCorrectDate);
         if (!errorNewer) continue;
       }
       items.push({ text: w.text, meaning: w.meaning, ci, wi });
@@ -125,30 +187,43 @@ function collectItems() {
   return items;
 }
 function noItemsMessage() {
-  if (dict.mode === 2) return '没有可播报的单词（所选章节中没有“最后默写错误”的单词）';
-  if (dict.mode === 1) return '没有错题可播报（所选章节中暂无标记错误的单词）';
-  return '请先在“词库”勾选要默写的章节，并确保章节包含单词';
+  if (dict.mode === 2)
+    return "没有可播报的单词（所选章节中没有“最后默写错误”的单词）";
+  if (dict.mode === 1) return "没有错题可播报（所选章节中暂无标记错误的单词）";
+  return "请先在“词库”勾选要默写的章节，并确保章节包含单词";
 }
 function waitResume() {
-  return new Promise(resolve => {
-    if (!dict.paused) { resolve(); return; }
+  return new Promise((resolve) => {
+    if (!dict.paused) {
+      resolve();
+      return;
+    }
     dict.resumeResolve = resolve;
   });
 }
 function sleep(ms) {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     const end = Date.now() + ms;
     (function loop() {
-      if (!dict.running) { resolve(); return; }
-      if (dict.paused) { waitResume().then(loop); return; }
-      if (Date.now() >= end) { resolve(); return; }
+      if (!dict.running) {
+        resolve();
+        return;
+      }
+      if (dict.paused) {
+        waitResume().then(loop);
+        return;
+      }
+      if (Date.now() >= end) {
+        resolve();
+        return;
+      }
       setTimeout(loop, Math.min(200, end - Date.now()));
     })();
   });
 }
 
 function waitOrAction(timeoutMs) {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     let settled = false;
     const cleanup = () => {
       if (timer) clearTimeout(timer);
@@ -160,62 +235,78 @@ function waitOrAction(timeoutMs) {
       if (settled) return;
       settled = true;
       cleanup();
-      resolve({ action: 'timeout' });
+      resolve({ action: "timeout" });
     }, timeoutMs);
 
     dict.skipResolve = () => {
       if (settled) return;
       settled = true;
       cleanup();
-      resolve({ action: 'next' });
+      resolve({ action: "next" });
     };
     dict.prevResolve = () => {
       if (settled) return;
       settled = true;
       cleanup();
-      resolve({ action: 'prev' });
+      resolve({ action: "prev" });
     };
     dict.replayResolve = () => {
       if (settled) return;
       settled = true;
       cleanup();
-      resolve({ action: 'replay' });
+      resolve({ action: "replay" });
     };
   });
 }
 
 function startDictation() {
-  dict.intervalMs = (parseInt($('intervalSec').value, 10) || 0) * 1000;
-  dict.repeatCount = Math.max(1, parseInt($('repeatCount').value, 10) || 3);
-  dict.repeatIntervalMs = (parseInt($('repeatIntervalSec').value, 10) || 0) * 1000;
+  dict.intervalMs = (parseInt($("intervalSec").value, 10) || 0) * 1000;
+  dict.repeatCount = Math.max(1, parseInt($("repeatCount").value, 10) || 3);
+  dict.repeatIntervalMs =
+    (parseInt($("repeatIntervalSec").value, 10) || 0) * 1000;
   // 报词方式默认取「第一个选中章节」的设置；多章节时给出提示
-  const selChs = data.chapters.filter(c => c.selected);
-  if (!selChs.length) { showAlert('未选中任何章节，不能开始默写'); return; } // 无选中章节不可开始默写
+  const selChs = data.chapters.filter((c) => c.selected);
+  if (!selChs.length) {
+    showAlert("未选中任何章节，不能开始默写");
+    return;
+  } // 无选中章节不可开始默写
   const firstCh = selChs[0];
   let dl = getDefaultDictLang(); // 默认按设置界面报词方式
   if (firstCh) {
-    dl = (typeof firstCh.dictLang === 'number') ? firstCh.dictLang : getDefaultDictLang(); // 章节无 dictLang 时按设置界面默认
-    $('langSel').value = String(dl);
+    dl =
+      typeof firstCh.dictLang === "number"
+        ? firstCh.dictLang
+        : getDefaultDictLang(); // 章节无 dictLang 时按设置界面默认
+    $("langSel").value = String(dl);
   }
-  dict.speakChinese = $('langSel').value === '1';
-  dict.mode = parseInt($('modeSel').value, 10) || 0;
-  dict.selectedChapters = selChs.map(c => c.name);
-  const hint = $('dictLangHint');
+  dict.speakChinese = $("langSel").value === "1";
+  dict.mode = parseInt($("modeSel").value, 10) || 0;
+  dict.selectedChapters = selChs.map((c) => c.name);
+  const hint = $("dictLangHint");
   if (hint) {
     if (selChs.length > 1 && firstCh) {
-      hint.textContent = '已选择 ' + selChs.length + ' 个章节，将按第一个章节「' + firstCh.name + '」的报词方式：' + (dl === 1 ? '汉语' : 'English');
-      hint.classList.remove('hidden');
+      hint.textContent =
+        "已选择 " +
+        selChs.length +
+        " 个章节，将按第一个章节「" +
+        firstCh.name +
+        "」的报词方式：" +
+        (dl === 1 ? "汉语" : "English");
+      hint.classList.remove("hidden");
     } else {
-      hint.classList.add('hidden');
+      hint.classList.add("hidden");
     }
   }
 
   const items = collectItems();
-  if (!items.length) { toast(noItemsMessage()); return; }
+  if (!items.length) {
+    toast(noItemsMessage());
+    return;
+  }
 
   shuffle(items);
   dict.items = items;
-  dict.marks = items.map(() => '');
+  dict.marks = items.map(() => "");
   dict.idx = 0;
   dict.running = true;
   dict.paused = false;
@@ -223,22 +314,27 @@ function startDictation() {
   dict.skipResolve = null;
   dict.prevResolve = null;
   dict.replayResolve = null;
-  showPhase('playing');
+  showPhase("playing");
   startTimer();
   runDictation();
 }
 
 // 顶部快捷“开始默写”：弹出默写弹窗并立即启动；未选中任何章节时阻止弹窗
 function startDictQuick() {
-  const selChs = data.chapters.filter(c => c.selected);
-  if (!selChs.length) { showAlert('未选中任何章节，不能开始默写'); return; } // 无选中章节不弹默写对话框
+  const selChs = data.chapters.filter((c) => c.selected);
+  if (!selChs.length) {
+    showAlert("未选中任何章节，不能开始默写");
+    return;
+  } // 无选中章节不弹默写对话框
   openDict();
-  setTimeout(function () { startDictation(); }, 350);
+  setTimeout(function () {
+    startDictation();
+  }, 350);
 }
 
 // 打开默写弹窗（使用真正的 modal 打开逻辑：焦点陷阱、滚动锁定、焦点返还）
 function openDict() {
-  const m = $('dictModal');
+  const m = $("dictModal");
   if (!m) return;
   if (!m.innerHTML.trim() && window.__PARTIAL_dictModal) {
     m.innerHTML = window.__PARTIAL_dictModal;
@@ -246,33 +342,42 @@ function openDict() {
   openModalEl(m);
 }
 
-// 关闭默写弹窗：正在默写时先弹确认框
+// 关闭默写弹窗：
+//   - 正在播报 → 弹确认框，确定则「停止播报并进入复习」，不关闭弹窗
+//   - 未在播报 → 直接关闭
 function closeDict() {
-  const m = $('dictModal');
+  const m = $("dictModal");
   if (!m) return;
 
   if (dict.running) {
     // 暂停 TTS，避免确认框打开期间还在读
-    try { speechSynthesis.pause(); } catch (e) { }
+    try {
+      speechSynthesis.pause();
+    } catch (e) {}
 
     confirmDialog(
-      '停止默写',
-      '默写仍在进行中，确定要停止并关闭吗？<br>' +
-      '停止后当前进度将不再保留。',
+      "停止默写",
+      "默写仍在进行中，确定要停止吗？<br>" +
+        "停止后将进入「默写完成」，可以逐个标记错误。",
       function () {
-        // 点「确定」：停止默写、关闭弹窗
-        stopDictation();
-        closeModalEl(m);
+        // 点「确定」：停止播报并进入复习，不关闭弹窗
+        // 先恢复语音（清掉 pause 状态），再走 finishDictation
+        try {
+          speechSynthesis.resume();
+        } catch (e) {}
+        finishDictation();
       },
       function () {
         // 点「取消」：恢复语音，保持默写继续
-        try { speechSynthesis.resume(); } catch (e) { }
-      }
+        try {
+          speechSynthesis.resume();
+        } catch (e) {}
+      },
     );
     return;
   }
 
-  // 未在默写（idle 或 review 阶段）：直接关闭
+  // 未在播报（idle 或 review 阶段）：直接关闭
   closeModalEl(m);
 }
 
@@ -285,8 +390,8 @@ async function runDictation() {
 
     dict.idx = i;
     const it = items[i];
-    const spoken = (dict.speakChinese && it.meaning) ? it.meaning : it.text;
-    const lang = /[一-鿿]/.test(spoken) ? 'zh-CN' : 'en-US';
+    const spoken = dict.speakChinese && it.meaning ? it.meaning : it.text;
+    const lang = /[一-鿿]/.test(spoken) ? "zh-CN" : "en-US";
     setCurrentWord(it.text);
     setProgress(i, items.length);
     updateNavButtons(i, items.length);
@@ -304,34 +409,58 @@ async function runDictation() {
 
       if (!dict.running) return;
 
-      if (result.action === 'prev') {
-        try { speechSynthesis.cancel(); } catch (e) { }
-        if (i > 0) { i--; skipCurrent = true; break; }
-        else { toast('已经是第一个了'); try { await speechPromise; } catch (e) { } continue; }
-      } else if (result.action === 'next') {
-        try { speechSynthesis.cancel(); } catch (e) { }
+      if (result.action === "prev") {
+        try {
+          speechSynthesis.cancel();
+        } catch (e) {}
+        if (i > 0) {
+          i--;
+          skipCurrent = true;
+          break;
+        } else {
+          toast("已经是第一个了");
+          try {
+            await speechPromise;
+          } catch (e) {}
+          continue;
+        }
+      } else if (result.action === "next") {
+        try {
+          speechSynthesis.cancel();
+        } catch (e) {}
         skipCurrent = true;
         break;
-      } else if (result.action === 'replay') {
-        try { speechSynthesis.cancel(); } catch (e) { }
+      } else if (result.action === "replay") {
+        try {
+          speechSynthesis.cancel();
+        } catch (e) {}
         r--;
         continue;
       }
 
-      try { await speechPromise; } catch (e) { }
+      try {
+        await speechPromise;
+      } catch (e) {}
 
       if (r < dict.repeatCount - 1) {
         const gapResult = await waitOrAction(dict.repeatIntervalMs);
         if (!dict.running) return;
-        if (gapResult.action === 'prev') {
-          try { speechSynthesis.cancel(); } catch (e) { }
-          if (i > 0) { i--; skipCurrent = true; break; }
-          else { toast('已经是第一个了'); }
+        if (gapResult.action === "prev") {
+          try {
+            speechSynthesis.cancel();
+          } catch (e) {}
+          if (i > 0) {
+            i--;
+            skipCurrent = true;
+            break;
+          } else {
+            toast("已经是第一个了");
+          }
           break;
-        } else if (gapResult.action === 'next') {
+        } else if (gapResult.action === "next") {
           skipCurrent = true;
           break;
-        } else if (gapResult.action === 'replay') {
+        } else if (gapResult.action === "replay") {
           r = -1;
           break;
         }
@@ -339,18 +468,25 @@ async function runDictation() {
     }
 
     if (!dict.running) return;
-    if (skipCurrent) { i++; continue; }
+    if (skipCurrent) {
+      i++;
+      continue;
+    }
 
     let iv = dict.intervalMs;
     if (it.text.length === 4) iv *= 2;
     const gapResult = await waitOrAction(iv);
     if (!dict.running) return;
-    if (gapResult.action === 'prev') {
-      if (i > 0) { i--; continue; }
-      else { toast('已经是第一个了'); }
-    } else if (gapResult.action === 'next') {
+    if (gapResult.action === "prev") {
+      if (i > 0) {
+        i--;
+        continue;
+      } else {
+        toast("已经是第一个了");
+      }
+    } else if (gapResult.action === "next") {
       i++;
-    } else if (gapResult.action === 'replay') {
+    } else if (gapResult.action === "replay") {
       continue;
     } else {
       i++;
@@ -364,121 +500,282 @@ async function runDictation() {
   }
 }
 
-function setCurrentWord(t) { $('currentWord').textContent = t; }
+function setCurrentWord(t) {
+  $("currentWord").textContent = t;
+}
 function setProgress(i, total) {
-  $('progressText').textContent = '进度: ' + (i + 1) + ' / ' + total;
-  $('progressFill').style.width = (total ? Math.round((i + 1) / total * 100) : 0) + '%';
+  $("progressText").textContent = "进度: " + (i + 1) + " / " + total;
+  $("progressFill").style.width =
+    (total ? Math.round(((i + 1) / total) * 100) : 0) + "%";
 }
 function updateNavButtons(i, total) {
-  $('prevBtn').disabled = (i <= 0);
-  $('nextBtn').disabled = (i >= total - 1);
-  $('replayBtn').disabled = false;
+  $("prevBtn").disabled = i <= 0;
+  $("nextBtn").disabled = i >= total - 1;
+  $("replayBtn").disabled = false;
 }
-function startTimer() { timerInterval = setInterval(() => { $('timerText').textContent = '本次用时: ' + formatDur(Math.floor((Date.now() - dict.startTime) / 1000)); }, 1000); }
-function stopTimer() { if (timerInterval) { clearInterval(timerInterval); timerInterval = null; } }
+function startTimer() {
+  timerInterval = setInterval(() => {
+    $("timerText").textContent =
+      "本次用时: " +
+      formatDur(Math.floor((Date.now() - dict.startTime) / 1000));
+  }, 1000);
+}
+function stopTimer() {
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+}
 
 function pauseResume() {
-  if (dict.phase !== 'playing') return;
+  if (dict.phase !== "playing") return;
   if (dict.paused) {
     dict.paused = false;
-    if (dict.resumeResolve) { dict.resumeResolve(); dict.resumeResolve = null; }
-    $('pauseBtn').textContent = '⏸ 暂停';
+    if (dict.resumeResolve) {
+      dict.resumeResolve();
+      dict.resumeResolve = null;
+    }
+    $("pauseBtn").textContent = "⏸ 暂停";
   } else {
     dict.paused = true;
-    try { speechSynthesis.cancel(); } catch (e) { }
-    $('pauseBtn').textContent = '▶ 继续';
+    try {
+      speechSynthesis.cancel();
+    } catch (e) {}
+    $("pauseBtn").textContent = "▶ 继续";
   }
 }
 function stopDictation() {
   dict.running = false;
   dict.paused = false;
-  if (dict.resumeResolve) { dict.resumeResolve(); dict.resumeResolve = null; }
-  if (dict.skipResolve) { dict.skipResolve(); dict.skipResolve = null; }
-  if (dict.prevResolve) { dict.prevResolve(); dict.prevResolve = null; }
-  if (dict.replayResolve) { dict.replayResolve(); dict.replayResolve = null; }
-  try { speechSynthesis.cancel(); } catch (e) { }
+  if (dict.resumeResolve) {
+    dict.resumeResolve();
+    dict.resumeResolve = null;
+  }
+  if (dict.skipResolve) {
+    dict.skipResolve();
+    dict.skipResolve = null;
+  }
+  if (dict.prevResolve) {
+    dict.prevResolve();
+    dict.prevResolve = null;
+  }
+  if (dict.replayResolve) {
+    dict.replayResolve();
+    dict.replayResolve = null;
+  }
+  try {
+    speechSynthesis.cancel();
+  } catch (e) {}
   stopTimer();
-  showPhase('idle');
+  showPhase("idle");
+}
+
+// 提前结束默写（用户点「停止」按钮），进入复习阶段，不关闭弹窗
+function finishDictation() {
+  if (dict.phase !== "playing") return;
+
+  // 截断 items 到已播报的部分（含当前正在播报的那个）
+  const playedCount = Math.min(dict.idx + 1, dict.items.length);
+  if (playedCount < dict.items.length) {
+    dict.items = dict.items.slice(0, playedCount);
+    dict.marks = dict.marks.slice(0, playedCount);
+  }
+
+  // 先停掉正在进行的 TTS 和定时器
+  try {
+    speechSynthesis.cancel();
+  } catch (e) {}
+  stopTimer();
+
+  // 触发所有挂起的 Promise，让 runDictation 的循环尽快退出
+  dict.running = false;
+  dict.paused = false;
+  if (dict.resumeResolve) {
+    dict.resumeResolve();
+    dict.resumeResolve = null;
+  }
+  if (dict.skipResolve) {
+    dict.skipResolve();
+    dict.skipResolve = null;
+  }
+  if (dict.prevResolve) {
+    dict.prevResolve();
+    dict.prevResolve = null;
+  }
+  if (dict.replayResolve) {
+    dict.replayResolve();
+    dict.replayResolve = null;
+  }
+
+  // 更新大字并进入复习
+  if (typeof setCurrentWord === "function") setCurrentWord("🎉 默写完成");
+  enterReview();
+}
+
+// 关闭默写弹窗：
+//   - 正在播报 → 弹确认框
+//       确定 → 停止播报并进入复习阶段，不关闭弹窗
+//       取消 → 保持默写继续
+//   - 未在播报（idle / review）→ 直接关闭
+function closeDict() {
+  const m = $("dictModal");
+  if (!m) return;
+
+  if (dict.running) {
+    // 暂停 TTS，避免确认框打开期间还在读
+    try {
+      speechSynthesis.pause();
+    } catch (e) {}
+
+    confirmDialog(
+      "停止默写",
+      "默写仍在进行中，确定要停止吗？<br>" +
+        "停止后将进入「默写完成」，可以逐个标记错误。",
+      function () {
+        // 点「确定」：恢复语音后走 finishDictation（不关闭弹窗）
+        try {
+          speechSynthesis.resume();
+        } catch (e) {}
+        finishDictation();
+      },
+      function () {
+        // 点「取消」：恢复语音，保持默写继续
+        try {
+          speechSynthesis.resume();
+        } catch (e) {}
+      },
+    );
+    return;
+  }
+
+  // 未在播报（idle / review 阶段）：直接关闭
+  closeModalEl(m);
 }
 
 function nextWord() {
-  if (dict.phase !== 'playing' || !dict.running) return;
+  if (dict.phase !== "playing" || !dict.running) return;
   if (dict.skipResolve) dict.skipResolve();
-  try { speechSynthesis.cancel(); } catch (e) { }
+  try {
+    speechSynthesis.cancel();
+  } catch (e) {}
 }
 function prevWord() {
-  if (dict.phase !== 'playing' || !dict.running) return;
+  if (dict.phase !== "playing" || !dict.running) return;
   if (dict.prevResolve) dict.prevResolve();
-  try { speechSynthesis.cancel(); } catch (e) { }
+  try {
+    speechSynthesis.cancel();
+  } catch (e) {}
 }
 function replayWord() {
-  if (dict.phase !== 'playing' || !dict.running) return;
+  if (dict.phase !== "playing" || !dict.running) return;
   if (dict.replayResolve) dict.replayResolve();
-  try { speechSynthesis.cancel(); } catch (e) { }
+  try {
+    speechSynthesis.cancel();
+  } catch (e) {}
 }
 
 function showPhase(p) {
   dict.phase = p;
-  $('reviewCard').classList.toggle('hidden', p !== 'review');
-  const ctrl = $('dictCtrlBtn');
-  if (p === 'idle') {
-    ctrl.textContent = '🚀 开始默写';
-    ctrl.className = 'primary';
+  $("reviewCard").classList.toggle("hidden", p !== "review");
+  const ctrl = $("dictCtrlBtn");
+  if (p === "idle") {
+    ctrl.textContent = "🚀 开始默写";
+    ctrl.className = "primary";
     ctrl.disabled = false;
-  } else if (p === 'playing') {
-    ctrl.textContent = '⏹ 停止';
-    ctrl.className = 'danger';
+  } else if (p === "playing") {
+    ctrl.textContent = "⏹ 停止";
+    ctrl.className = "danger";
     ctrl.disabled = false;
   } else {
     ctrl.disabled = true; // review 阶段由“标记完成”按钮收尾
   }
-  $('pauseBtn').disabled = (p !== 'playing');
-  $('nextBtn').disabled = (p !== 'playing');
-  $('prevBtn').disabled = (p !== 'playing');
-  $('replayBtn').disabled = (p !== 'playing');
-  $('pauseBtn').textContent = '⏸ 暂停';
-  if (p === 'idle') {
-    $('currentWord').textContent = '准备默写';
-    $('progressText').textContent = '进度: 0 / 0';
-    $('progressFill').style.width = '0%';
-    $('timerText').textContent = '本次用时: 0秒';
+  $("pauseBtn").disabled = p !== "playing";
+  $("nextBtn").disabled = p !== "playing";
+  $("prevBtn").disabled = p !== "playing";
+  $("replayBtn").disabled = p !== "playing";
+  $("pauseBtn").textContent = "⏸ 暂停";
+  if (p === "idle") {
+    $("currentWord").textContent = "准备默写";
+    $("progressText").textContent = "进度: 0 / 0";
+    $("progressFill").style.width = "0%";
+    $("timerText").textContent = "本次用时: 0秒";
   }
-  if (p === 'review') $('currentWord').textContent = '🎉 默写完成';
+  if (p === "review") $("currentWord").textContent = "🎉 默写完成";
 }
 
 // 主控制按钮：空闲时开始默写，进行中（含暂停）时停止
 function onDictCtrl() {
-  if (dict.phase === 'idle') startDictation();
-  else stopDictation();
+  if (dict.phase === "idle") startDictation();
+  else finishDictation(); // playing 阶段点「停止」→ 进复习，而不是回 idle
 }
 
 function enterReview() {
-  showPhase('review');
-  const el = $('reviewList');
-  el.innerHTML = '';
+  showPhase("review");
+  const el = $("reviewList");
+  el.innerHTML = "";
   dict.items.forEach((it, i) => {
-    const d = document.createElement('div');
-    d.className = 'review-item';
+    const d = document.createElement("div");
+    d.className = "review-item";
     d.innerHTML =
-      '<span class="rt">' + esc(it.text) + (it.meaning ? '（' + esc(it.meaning) + '）' : '') + '</span>' +
-      '<button class="mark-btn" id="okBtn' + i + '" onclick="toggleMark(' + i + ', \'ok\')">✓ 正确</button>' +
-      '<button class="mark-btn" id="wrongBtn' + i + '" onclick="toggleMark(' + i + ', \'wrong\')">✗ 错误</button>';
+      '<span class="rt">' +
+      esc(it.text) +
+      (it.meaning ? "（" + esc(it.meaning) + "）" : "") +
+      "</span>" +
+      '<button class="mark-btn" id="okBtn' +
+      i +
+      '" onclick="toggleMark(' +
+      i +
+      ", 'ok')\">✓ 正确</button>" +
+      '<button class="mark-btn" id="wrongBtn' +
+      i +
+      '" onclick="toggleMark(' +
+      i +
+      ", 'wrong')\">✗ 错误</button>";
     el.appendChild(d);
   });
 }
+
 function toggleMark(i, kind) {
-  dict.marks[i] = (dict.marks[i] === kind) ? '' : kind;
-  const ok = $('okBtn' + i), wrong = $('wrongBtn' + i);
-  ok.classList.toggle('sel-ok', dict.marks[i] === 'ok');
-  wrong.classList.toggle('sel-wrong', dict.marks[i] === 'wrong');
+  dict.marks[i] = dict.marks[i] === kind ? "" : kind;
+  const ok = $("okBtn" + i),
+    wrong = $("wrongBtn" + i);
+  ok.classList.toggle("sel-ok", dict.marks[i] === "ok");
+  wrong.classList.toggle("sel-wrong", dict.marks[i] === "wrong");
 }
+
+// 出分数：若有未标记的单词，先提示
 function completeDictation() {
+  const items = dict.items;
+  const unmarked = [];
+  for (let i = 0; i < items.length; i++) {
+    if (!dict.marks[i]) unmarked.push(i);
+  }
+
+  if (unmarked.length > 0) {
+    confirmDialog(
+      "提示",
+      "还有 <b>" +
+        unmarked.length +
+        "</b> 个单词未标记。<br>" +
+        '系统将默认把这些单词视为<b style="color:var(--ok);">正确</b>。<br><br>' +
+        "确定继续出分数吗？",
+      doCompleteDictation,
+    );
+    return;
+  }
+
+  // 全部已标记，直接出分数
+  doCompleteDictation();
+}
+
+// 真正统计 & 出分数
+function doCompleteDictation() {
   const items = dict.items;
   let wrongCount = 0;
   const today = todayStr();
   for (let i = 0; i < items.length; i++) {
     const w = data.chapters[items[i].ci].words[items[i].wi];
-    const wrong = dict.marks[i] === 'wrong';
+    const wrong = dict.marks[i] === "wrong";
     w.scoreCount += 1;
     if (wrong) {
       w.wrongCount += 1;
@@ -493,29 +790,84 @@ function completeDictation() {
   }
   const total = items.length;
   const correctCount = total - wrongCount;
-  const score = total ? (100 * correctCount / total) : 0;
+  const score = total ? (100 * correctCount) / total : 0;
   const elapsedSec = Math.floor((Date.now() - dict.startTime) / 1000);
 
-  data.history.push({ date: nowStr(), chapters: dict.selectedChapters.join('、'), total, wrongCount, score });
+  data.history.push({
+    date: nowStr(),
+    chapters: dict.selectedChapters.join("、"),
+    total,
+    wrongCount,
+    score,
+  });
 
   saveData();
   renderChapterList();
   renderWords();
   renderHistory();
   renderChart();
-  showPhase('idle');
+  showPhase("idle");
   closeDict();
   showResult({ total, correctCount, wrongCount, score, elapsedSec });
 }
+
 function showResult(r) {
-  const wrong = dict.items.filter((it, i) => dict.marks[i] === 'wrong')
-    .map(it => it.meaning ? it.text + '（' + it.meaning + '）' : it.text);
-  let html =
-    '<div class="result-line">单词总数: <b>' + r.total + '</b></div>' +
-    '<div class="result-line">正确: <b style="color:var(--ok);">' + r.correctCount + '</b></div>' +
-    '<div class="result-line">错误: <b style="color:var(--danger);">' + r.wrongCount + '</b></div>' +
-    '<div class="result-line">用时: <b>' + formatDur(r.elapsedSec) + '</b></div>' +
-    '<div class="result-line" style="font-size:22px;color:var(--primary);font-weight:800;margin-top:12px;">得分: ' + r.score.toFixed(1) + ' 分</div>';
-  if (wrong.length) html += '<div class="result-wrong">❌ 错误单词:<br>' + wrong.map(esc).join('、') + '</div>';
-  openModal('默写结果', html + '<div class="row"><button class="primary" onclick="closeModal()">关闭</button></div>');
+  const wrong = dict.items
+    .filter((it, i) => dict.marks[i] === "wrong")
+    .map((it) => (it.meaning ? it.text + "（" + it.meaning + "）" : it.text));
+
+  // 得分颜色（与历史列表的评分色一致）
+  let scoreColor;
+  if (r.score >= 90) scoreColor = "linear-gradient(135deg, #2dbf7f, #22a06b)";
+  else if (r.score >= 70)
+    scoreColor = "linear-gradient(135deg, #5b8def, #4a7cff)";
+  else if (r.score >= 50)
+    scoreColor = "linear-gradient(135deg, #fbbf24, #f59e0b)";
+  else scoreColor = "linear-gradient(135deg, #f56b6b, #f05252)";
+
+  const wrongHtml = wrong.length
+    ? '<div class="result-wrong-list">' +
+      '<div class="result-wrong-title">❌ 错误单词（' +
+      wrong.length +
+      "）</div>" +
+      '<div class="result-wrong-items">' +
+      wrong
+        .map((w) => '<span class="result-wrong-item">' + esc(w) + "</span>")
+        .join("") +
+      "</div>" +
+      "</div>"
+    : '<div class="result-perfect">🎉 全部正确！</div>';
+
+  const html =
+    '<div class="result-score-card">' +
+    '<div class="result-score-num" style="background:' +
+    scoreColor +
+    '">' +
+    r.score.toFixed(0) +
+    "</div>" +
+    '<div class="result-score-label">得分</div>' +
+    "</div>" +
+    '<div class="result-grid">' +
+    '<div class="result-cell"><div class="result-cell-num">' +
+    r.total +
+    '</div><div class="result-cell-label">单词总数</div></div>' +
+    '<div class="result-cell"><div class="result-cell-num" style="color:var(--ok);">' +
+    r.correctCount +
+    '</div><div class="result-cell-label">正确</div></div>' +
+    '<div class="result-cell"><div class="result-cell-num" style="color:var(--danger);">' +
+    r.wrongCount +
+    '</div><div class="result-cell-label">错误</div></div>' +
+    '<div class="result-cell"><div class="result-cell-num">' +
+    formatDur(r.elapsedSec) +
+    '</div><div class="result-cell-label">用时</div></div>' +
+    "</div>" +
+    wrongHtml;
+
+  openModal(
+    "默写结果",
+    html +
+      '<div class="row" style="justify-content:center;margin-top:18px;">' +
+      '<button class="primary" onclick="closeModal()">关闭</button>' +
+      "</div>",
+  );
 }

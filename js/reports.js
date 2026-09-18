@@ -4,22 +4,27 @@
  * =================================================================== */
 
 function renderChart() {
-  const container = $('chartContainer');
+  const container = $("chartContainer");
   if (!container) return;
-  const badge = $('chartBadge');
+  const badge = $("chartBadge");
   const history = data.history || [];
 
   if (history.length < 2) {
-    if (badge) badge.textContent = history.length + ' 次';
-    container.innerHTML = '<div class="chart-empty">至少需要 2 次默写记录才能显示趋势</div>';
+    if (badge) badge.textContent = history.length + " 次";
+    container.innerHTML =
+      '<div class="chart-empty">至少需要 2 次默写记录才能显示趋势</div>';
     return;
   }
 
   const recent = history.slice(-10);
-  if (badge) badge.textContent = '最近 ' + recent.length + ' 次';
+  if (badge) badge.textContent = "最近 " + recent.length + " 次";
 
-  const W = 620, H = 200;
-  const padL = 30, padR = 15, padT = 20, padB = 28;
+  const W = 620,
+    H = 200;
+  const padL = 30,
+    padR = 15,
+    padT = 20,
+    padB = 28;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
 
@@ -32,34 +37,82 @@ function renderChart() {
     return { x, y, score, item: h };
   });
 
-  let gridLines = '';
-  [0, 25, 50, 75, 100].forEach(v => {
+  let gridLines = "";
+  [0, 25, 50, 75, 100].forEach((v) => {
     const y = padT + innerH * (1 - v / 100);
-    gridLines += '<line class="chart-grid" x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '"/>';
-    gridLines += '<text class="chart-axis-text" x="' + (padL - 6) + '" y="' + (y + 3) + '" text-anchor="end">' + v + '</text>';
+    gridLines +=
+      '<line class="chart-grid" x1="' +
+      padL +
+      '" y1="' +
+      y +
+      '" x2="' +
+      (W - padR) +
+      '" y2="' +
+      y +
+      '"/>';
+    gridLines +=
+      '<text class="chart-axis-text" x="' +
+      (padL - 6) +
+      '" y="' +
+      (y + 3) +
+      '" text-anchor="end">' +
+      v +
+      "</text>";
   });
 
-  const linePath = points.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
-  const areaPath = linePath +
-    ' L' + points[n - 1].x.toFixed(1) + ',' + (padT + innerH) +
-    ' L' + points[0].x.toFixed(1) + ',' + (padT + innerH) + ' Z';
+  const linePath = points
+    .map(
+      (p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.y.toFixed(1),
+    )
+    .join(" ");
+  const areaPath =
+    linePath +
+    " L" +
+    points[n - 1].x.toFixed(1) +
+    "," +
+    (padT + innerH) +
+    " L" +
+    points[0].x.toFixed(1) +
+    "," +
+    (padT + innerH) +
+    " Z";
 
-  let xLabels = '';
+  let xLabels = "";
   const labelStep = Math.max(1, Math.ceil(n / 6));
   points.forEach((p, i) => {
     if (i % labelStep === 0 || i === n - 1) {
-      const label = (p.item.date || '').slice(5, 10) || (i + 1) + '';
-      xLabels += '<text class="chart-axis-text" x="' + p.x.toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(label) + '</text>';
+      const label = (p.item.date || "").slice(5, 10) || i + 1 + "";
+      xLabels +=
+        '<text class="chart-axis-text" x="' +
+        p.x.toFixed(1) +
+        '" y="' +
+        (H - 8) +
+        '" text-anchor="middle">' +
+        esc(label) +
+        "</text>";
     }
   });
 
-  const dots = points.map((p, i) =>
-    '<circle class="chart-dot" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="4">' +
-    '<title>' + esc(p.item.date || '') + ' · ' + p.score.toFixed(1) + ' 分 · ' + (p.item.total || 0) + ' 词</title>' +
-    '</circle>'
-  ).join('');
+  const dots = points
+    .map(
+      (p, i) =>
+        '<circle class="chart-dot" cx="' +
+        p.x.toFixed(1) +
+        '" cy="' +
+        p.y.toFixed(1) +
+        '" r="4">' +
+        "<title>" +
+        esc(p.item.date || "") +
+        " · " +
+        p.score.toFixed(1) +
+        " 分 · " +
+        (p.item.total || 0) +
+        " 词</title>" +
+        "</circle>",
+    )
+    .join("");
 
-  const scores = recent.map(h => h.score || 0);
+  const scores = recent.map((h) => h.score || 0);
   const avgScore = (scores.reduce((a, b) => a + b, 0) / n).toFixed(1);
   const maxScore = Math.max.apply(null, scores).toFixed(1);
   const minScore = Math.min.apply(null, scores).toFixed(1);
@@ -68,78 +121,123 @@ function renderChart() {
 
   const svg =
     '<div class="chart-wrap">' +
-    '<svg class="chart-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
-    '<defs>' +
+    '<svg class="chart-svg" viewBox="0 0 ' +
+    W +
+    " " +
+    H +
+    '" preserveAspectRatio="none">' +
+    "<defs>" +
     '<linearGradient id="chartGradient" x1="0" y1="0" x2="1" y2="0">' +
     '<stop offset="0%" stop-color="#5b8def"/>' +
     '<stop offset="100%" stop-color="#4a7cff"/>' +
-    '</linearGradient>' +
+    "</linearGradient>" +
     '<linearGradient id="chartAreaGradient" x1="0" y1="0" x2="0" y2="1">' +
     '<stop offset="0%" stop-color="#4a7cff" stop-opacity="0.3"/>' +
     '<stop offset="100%" stop-color="#4a7cff" stop-opacity="0"/>' +
-    '</linearGradient>' +
-    '</defs>' +
+    "</linearGradient>" +
+    "</defs>" +
     gridLines +
-    '<path class="chart-area" d="' + areaPath + '"/>' +
-    '<path class="chart-line" d="' + linePath + '"/>' +
+    '<path class="chart-area" d="' +
+    areaPath +
+    '"/>' +
+    '<path class="chart-line" d="' +
+    linePath +
+    '"/>' +
     dots +
     xLabels +
-    '</svg>' +
+    "</svg>" +
     '<div class="chart-legend">' +
     '<span class="legend-item"><span class="dot"></span> 每次得分</span>' +
     '<span class="legend-item">📅 日期</span>' +
-    '</div>' +
+    "</div>" +
     '<div class="chart-stats">' +
-    '<span class="cs-item">平均分 <b>' + avgScore + '</b></span>' +
-    '<span class="cs-item">最高 <b>' + maxScore + '</b></span>' +
-    '<span class="cs-item">最低 <b>' + minScore + '</b></span>' +
-    '<span class="cs-item">总词数 <b>' + totalWords + '</b></span>' +
-    '<span class="cs-item">总错词 <b>' + totalWords + '</b></span>' +
-    '</div>' +
-    '</div>';
+    '<span class="cs-item">平均分 <b>' +
+    avgScore +
+    "</b></span>" +
+    '<span class="cs-item">最高 <b>' +
+    maxScore +
+    "</b></span>" +
+    '<span class="cs-item">最低 <b>' +
+    minScore +
+    "</b></span>" +
+    '<span class="cs-item">总词数 <b>' +
+    totalWords +
+    "</b></span>" +
+    '<span class="cs-item">总错词 <b>' +
+    totalWords +
+    "</b></span>" +
+    "</div>" +
+    "</div>";
   container.innerHTML = svg;
 }
 
 function renderHistory() {
-  const el = $('historyList');
+  const el = $("historyList");
   if (!el) return;
-  const badge = $('historyCountBadge');
-  const actions = $('historyActions');
+  const badge = $("historyCountBadge");
+  const actions = $("historyActions");
   const history = data.history || [];
-  if (badge) badge.textContent = history.length + ' 次';
-  if (actions) actions.style.display = history.length ? 'flex' : 'none';
+  if (badge) badge.textContent = history.length + " 次";
+  if (actions) actions.style.display = history.length ? "flex" : "none";
 
   if (!history.length) {
     el.innerHTML = '<div class="history-empty">暂无默写记录</div>';
     return;
   }
   const list = history.slice().reverse().slice(0, 30);
-  el.innerHTML = list.map((h, i) => {
-    const score = h.score || 0;
-    let color;
-    if (score >= 90) color = 'linear-gradient(135deg, #2dbf7f, #22a06b)';
-    else if (score >= 70) color = 'linear-gradient(135deg, #5b8def, #4a7cff)';
-    else if (score >= 50) color = 'linear-gradient(135deg, #fbbf24, #f59e0b)';
-    else color = 'linear-gradient(135deg, #f56b6b, #f05252)';
-    return '<div class="history-item">' +
-      '<div class="history-score" style="background:' + color + '">' + Math.round(score) + '</div>' +
-      '<div class="history-info">' +
-      '<div class="history-title">' + esc(h.chapters || '—') + '</div>' +
-      '<div class="history-meta">' +
-      '<span>📅 ' + esc(h.date || '') + '</span>' +
-      '<span>📝 ' + (h.total || 0) + ' 词</span>' +
-      '<span style="color:var(--danger);">❌ ' + (h.wrongCount || 0) + '</span>' +
-      '</div>' +
-      '</div>' +
-      '</div>';
-  }).join('');
+  el.innerHTML = list
+    .map((h, i) => {
+      const score = h.score || 0;
+      let color;
+      if (score >= 90) color = "linear-gradient(135deg, #2dbf7f, #22a06b)";
+      else if (score >= 70) color = "linear-gradient(135deg, #5b8def, #4a7cff)";
+      else if (score >= 50) color = "linear-gradient(135deg, #fbbf24, #f59e0b)";
+      else color = "linear-gradient(135deg, #f56b6b, #f05252)";
+      return (
+        '<div class="history-item">' +
+        '<div class="history-score" style="background:' +
+        color +
+        '">' +
+        Math.round(score) +
+        "</div>" +
+        '<div class="history-info">' +
+        '<div class="history-title">' +
+        esc(h.chapters || "—") +
+        "</div>" +
+        '<div class="history-meta">' +
+        "<span>📅 " +
+        esc(h.date || "") +
+        "</span>" +
+        "<span>📝 " +
+        (h.total || 0) +
+        " 词</span>" +
+        '<span style="color:var(--danger);">❌ ' +
+        (h.wrongCount || 0) +
+        "</span>" +
+        "</div>" +
+        "</div>" +
+        "</div>"
+      );
+    })
+    .join("");
 }
 
-function clearHistory() {
-  if (!confirm('确定清空所有默写历史记录吗？此操作不可恢复。')) return;
+// 清空历史：弹出确认对话框
+function confirmClearHistory() {
+  confirmDialog(
+    "清空历史",
+    "确定要清空全部默写历史记录吗？<br>" + "此操作不可撤销。",
+    function () {
+      doClearHistory();
+    },
+  );
+}
+
+// 实际清空历史
+function doClearHistory() {
   data.history = [];
   saveData();
   renderHistory();
   renderChart();
-  toast('历史已清空');
+  toast("历史已清空");
 }
