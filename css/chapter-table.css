@@ -1,0 +1,126 @@
+/* ===================================================================
+ * chapter-table.css — 章节表
+ *   6 槽 grid：手柄 | 复选框 | 章节名 | 单词数 | 编辑 | 删除
+ * =================================================================== */
+
+/* =================================================================
+ * 章节表头
+ * ================================================================= */
+.chapter-table-header {
+  display: grid;
+  align-items: center;
+  column-gap: 8px;
+  grid-template-columns:
+    var(--col-handle) 20px minmax(0, 1fr) 72px var(--col-action)
+    var(--col-action);
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  height: 32px;
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+.chapter-table-header .th-handle-spacer {
+  visibility: hidden;
+  padding: 4px 6px;
+  font-size: 18px;
+  line-height: 1;
+  user-select: none;
+}
+
+.chapter-table-header input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+  justify-self: center;
+}
+
+.chapter-table-header .th-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-table-header .th-count {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.chapter-table-header .th-action-edit,
+.chapter-table-header .th-action-del {
+  text-align: center;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+/* =================================================================
+ * 章节行（拖拽、悬停、拖拽指示已在 table-base.css 通用）
+ * ================================================================= */
+.chapter-item {
+  display: grid;
+  align-items: center;
+  column-gap: 8px;
+  grid-template-columns:
+    var(--col-handle) 20px minmax(0, 1fr) 72px var(--col-action)
+    var(--col-action);
+  padding: 12px 10px;
+}
+
+.chapter-item.active {
+  background: linear-gradient(135deg, #eef4ff, #e5eeff);
+  box-shadow: inset 0 0 0 1.5px rgba(74, 124, 255, 0.25);
+}
+
+/* =================================================================
+ * 章节行的内容列
+ * ================================================================= */
+.chapter-item .name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+  transition: color 0.15s;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-item .name:hover {
+  color: var(--primary);
+}
+
+.chapter-item .count {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  background: var(--card-soft);
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-weight: 500;
+  transition: background-color 0.3s;
+  width: 72px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.chapter-item input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  margin: 0;
+  justify-self: center;
+}
+
+/* 查看模式下的章节行 */
+.chapter-item.view-mode {
+  background: var(--card-soft);
+  border-radius: 8px;
+}

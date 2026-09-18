@@ -1,0 +1,251 @@
+/* ===================================================================
+ * chapter-search.css — 章节搜索框 + 下拉列表
+ * 打字机提示层见 chapter-hint.css
+ * =================================================================== */
+
+/* =================================================================
+ * 搜索框容器
+ *   宽度 = 卡片内容区宽度（padding 0），与标题栏、列表对齐
+ * ================================================================= */
+#chapterCombo {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0 0 12px;
+}
+
+#chapterCombo .combo-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 输入框：左侧留搜索图标位，右侧留清空 + 下拉箭头位 */
+#chapterCombo .combo-input-wrap input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding-left: 38px;
+  padding-right: 66px;
+
+  /* 醒目：淡蓝底 + 主题色边框 */
+  border-color: var(--primary);
+  background: var(--primary-light);
+  font-weight: 600;
+  color: var(--text);
+}
+
+#chapterCombo .combo-input-wrap input[type="text"]:focus {
+  background: var(--card);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(74, 124, 255, 0.18);
+}
+
+#chapterCombo .combo-input-wrap .search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  pointer-events: none;
+  color: var(--primary);
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+#chapterCombo:focus-within .search-icon {
+  opacity: 1;
+  animation: searchIconPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes searchIconPulse {
+  0%,
+  100% {
+    opacity: 0.8;
+    transform: translateY(-50%) scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.1);
+  }
+}
+
+#chapterCombo .search-clear {
+  position: absolute;
+  right: 34px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  border: none;
+  background: var(--border);
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 1;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+#chapterCombo.has-text .search-clear {
+  display: flex;
+}
+
+#chapterCombo .search-clear:hover {
+  background: var(--primary);
+  color: #fff;
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: none;
+}
+
+/* 下拉箭头 */
+#chapterCombo .combo-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+#chapterCombo .combo-toggle:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+  box-shadow: none;
+  transform: translateY(-50%);
+}
+
+/* =================================================================
+ * 下拉面板
+ * ================================================================= */
+#chapterCombo .combo-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 60;
+  padding: 4px;
+  animation: opsIn 0.15s ease;
+}
+
+#chapterCombo .combo-panel.hidden {
+  display: none;
+}
+
+/* 列表项 */
+#chapterCombo .combo-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+  user-select: none;
+}
+
+#chapterCombo .combo-item:hover,
+#chapterCombo .combo-item.active {
+  background: var(--primary-light);
+}
+
+#chapterCombo .combo-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+  margin: 0;
+}
+
+#chapterCombo .combo-item .combo-item-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#chapterCombo .combo-item .combo-item-count {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--card-soft);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+#chapterCombo .combo-panel .combo-empty {
+  padding: 16px 12px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* 下拉面板的表头行 */
+#chapterCombo .combo-item.combo-header {
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  margin-bottom: 2px;
+  padding-bottom: 10px;
+  cursor: pointer;
+}
+
+#chapterCombo .combo-item.combo-header .combo-item-name {
+  font-weight: 700;
+  color: var(--text);
+}
+
+#chapterCombo .combo-item.combo-header .combo-item-count {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* 深色模式微调 */
+body.dark #chapterCombo .combo-panel {
+  background: #1a2332;
+  border-color: var(--border-strong);
+}
+
+body.dark #chapterCombo .combo-item:hover,
+body.dark #chapterCombo .combo-item.active {
+  background: #232f42;
+}
+
+body.dark #chapterCombo .combo-input-wrap input[type="text"] {
+  background: #1e2a4a;
+  color: var(--text);
+}
+
+body.dark #chapterSearch::placeholder {
+  color: var(--primary);
+  opacity: 0.9;
+}

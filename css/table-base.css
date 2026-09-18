@@ -1,0 +1,136 @@
+/* ===================================================================
+ * table-base.css — 表格通用基类
+ *   - 章节表 / 单词表共用的拖拽行样式
+ *   - 拖拽手柄
+ *   - 失效态（手柄 / 图标按钮灰显）
+ *   - 表头复选框禁用态
+ * =================================================================== */
+
+/* =================================================================
+ * 拖拽行通用样式
+ *   章节行 / 单词行共用的拖拽、悬停、拖拽指示
+ * ================================================================= */
+.chapter-item,
+.word-item {
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  transition:
+    background 0.18s,
+    box-shadow 0.18s,
+    opacity 0.18s,
+    transform 0.18s;
+  position: relative;
+  border-radius: 10px;
+  margin-bottom: 2px;
+}
+
+.chapter-item:last-child,
+.word-item:last-child {
+  border-bottom: none;
+}
+
+.chapter-item:hover,
+.word-item:hover {
+  background: var(--card-soft);
+}
+
+.chapter-item.dragging,
+.word-item.dragging {
+  opacity: 0.55;
+  background: #e6f0fb;
+  box-shadow: var(--shadow-lg);
+  border-radius: 10px;
+  z-index: 10;
+  transform: scale(1.02);
+}
+
+.chapter-item.drag-over,
+.word-item.drag-over {
+  border-top: 3px solid var(--primary);
+  border-radius: 0;
+  margin-top: -3px;
+}
+
+.chapter-item.drag-over-bottom,
+.word-item.drag-over-bottom {
+  border-bottom: 3px solid var(--primary);
+  border-radius: 0;
+  margin-bottom: -3px;
+}
+
+/* =================================================================
+ * 拖拽手柄
+ * ================================================================= */
+.drag-handle {
+  cursor: grab;
+  padding: 4px 6px;
+  color: #c3cddb;
+  font-size: 18px;
+  line-height: 1;
+  user-select: none;
+  touch-action: none;
+  border-radius: 6px;
+  transition: all 0.15s;
+  justify-self: start;
+}
+
+.drag-handle:hover {
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  color: var(--primary-dark);
+  background: #dbe6ff;
+}
+
+/* =================================================================
+ * 图标按钮（表内通用）
+ * ================================================================= */
+.icon-btn {
+  justify-self: center;
+}
+
+/* =================================================================
+ * 失效态：手柄 / 图标按钮灰显
+ * ================================================================= */
+.drag-handle.disabled,
+.drag-handle:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.drag-handle.disabled:hover,
+.drag-handle:disabled:hover,
+.drag-handle.disabled:active,
+.drag-handle:disabled:active {
+  color: #c3cddb;
+  background: transparent;
+}
+
+.icon-btn.disabled,
+.icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.icon-btn.disabled:hover,
+.icon-btn:disabled:hover {
+  background: transparent;
+  color: var(--muted);
+  transform: none;
+  box-shadow: none;
+}
+
+/* =================================================================
+ * 表头复选框禁用态
+ * ================================================================= */
+.chapter-table-header input[type="checkbox"]:disabled,
+.word-table-header input[type="checkbox"]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}

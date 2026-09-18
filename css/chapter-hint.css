@@ -1,0 +1,73 @@
+/* ===================================================================
+ * chapter-hint.css — 章节搜索框的打字机提示层
+ * =================================================================== */
+
+.chapter-search-hint {
+  position: absolute;
+  left: 38px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: calc(100% - 100px);
+  opacity: 1;
+  transition: opacity 0.2s;
+  user-select: none;
+
+  /* 紫 → 蓝 渐变文字 */
+  background: linear-gradient(90deg, #a855f7 0%, #6a5acd 50%, #4a7cff 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: chapterHintFlow 4s linear infinite;
+
+  /* 阴影：显式指定颜色，否则被 transparent 吃掉 */
+  text-shadow: 0 1px 2px rgba(106, 90, 205, 0.45);
+}
+
+@keyframes chapterHintFlow {
+  0% {
+    background-position: 0% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* 光标闪烁 */
+.chapter-search-hint::after {
+  content: "|";
+  margin-left: 1px;
+  animation: caretBlink 0.8s step-end infinite;
+  color: #6a5acd;
+  font-weight: 400;
+}
+
+@keyframes caretBlink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
+}
+
+/* input 有文字或聚焦时，隐藏提示层 */
+#chapterCombo.has-text .chapter-search-hint,
+#chapterCombo:focus-within .chapter-search-hint {
+  opacity: 0;
+}
+
+/* 深色模式 */
+body.dark .chapter-search-hint {
+  color: var(--primary);
+}

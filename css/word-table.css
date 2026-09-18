@@ -1,0 +1,232 @@
+/* ===================================================================
+ * word-table.css — 单词表
+ *   9 槽 grid：手柄 | 单词 | 对 | 最后对 | 错 | 最后错 | 均分 | 编辑 | 删除
+ * =================================================================== */
+
+/* =================================================================
+ * 单词表头
+ * ================================================================= */
+.word-table-header {
+  display: grid;
+  align-items: center;
+  column-gap: var(--table-gap);
+  grid-template-columns:
+    var(--col-handle) minmax(0, 1fr) var(--col-num) var(--col-date)
+    var(--col-num) var(--col-date) var(--col-score) var(--col-action) var(
+      --col-action
+    );
+  padding: 6px 8px;
+  margin: 0 0 4px;
+  height: 32px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+.word-table-header .th-num,
+.word-table-header .th-date,
+.word-table-header .th-score {
+  text-align: center;
+}
+
+.word-table-header .th-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.word-table-header .th-action-edit,
+.word-table-header .th-action-del {
+  text-align: center;
+  white-space: nowrap;
+  font-size: 11.5px;
+}
+
+/* =================================================================
+ * 单词行（拖拽、悬停、拖拽指示已在 table-base.css 通用）
+ * ================================================================= */
+.word-item {
+  display: grid;
+  align-items: center;
+  column-gap: var(--table-gap);
+  grid-template-columns:
+    var(--col-handle) minmax(0, 1fr) var(--col-num) var(--col-date)
+    var(--col-num) var(--col-date) var(--col-score) var(--col-action) var(
+      --col-action
+    );
+  padding: 12px 8px;
+}
+
+/* =================================================================
+ * 单词列（单词 + 释义）
+ * ================================================================= */
+.word-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.word-cell .wtext,
+.word-cell .wmeaning {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wtext {
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--text);
+  letter-spacing: 0.2px;
+  cursor: pointer;
+}
+
+.wtext:hover {
+  color: var(--primary);
+}
+
+.wmeaning {
+  color: var(--primary-dark);
+  font-size: 14px;
+  background: var(--primary-light);
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+/* =================================================================
+ * 统计列
+ * ================================================================= */
+.wstat-num,
+.wstat-date,
+.wstat-score {
+  text-align: center;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* =================================================================
+ * 单词详情（展开后的统计面板）
+ * ================================================================= */
+.word-detail {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--card-soft);
+  border-radius: 10px;
+  border-left: 3px solid var(--primary);
+  font-size: 13px;
+  color: var(--text-soft);
+  display: none;
+  animation: fadeIn 0.2s ease;
+}
+
+.word-detail.show {
+  display: block;
+}
+
+.word-detail .detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+}
+
+.word-detail .detail-label {
+  color: var(--muted);
+}
+
+.word-detail .detail-value {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.word-detail .detail-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 6px;
+  display: flex;
+}
+
+.word-detail .bar-ok {
+  background: var(--ok);
+  height: 100%;
+  transition: width 0.3s;
+}
+
+.word-detail .bar-wrong {
+  background: var(--danger);
+  height: 100%;
+  transition: width 0.3s;
+}
+
+/* =================================================================
+ * 查看模式：9 列（与编辑模式一致，手柄/操作灰显）
+ * ================================================================= */
+#wordBody.list-view .word-table-header,
+#wordBody.list-view .word-item {
+  grid-template-columns:
+    var(--col-handle) minmax(0, 1fr) var(--col-num) var(--col-date)
+    var(--col-num) var(--col-date) var(--col-score) var(--col-action) var(
+      --col-action
+    );
+}
+
+/* =================================================================
+ * 多章节 / 去重：8 列（无手柄）
+ * ================================================================= */
+#wordBody.multi-ch .word-table-header,
+#wordBody.multi-ch .word-item {
+  grid-template-columns:
+    minmax(0, 1fr) var(--col-num) var(--col-date) var(--col-num)
+    var(--col-date) var(--col-score) var(--col-action) var(--col-action);
+}
+
+#wordBody.multi-ch .word-table-header .th-handle-spacer {
+  display: none;
+}
+
+/* =================================================================
+ * 单词预览（折叠时的标签）
+ * ================================================================= */
+.word-preview {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--card-soft);
+  border-radius: 10px;
+  border: 1px dashed var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 8px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  transition: background-color 0.3s;
+}
+
+.word-preview .wp-item {
+  color: var(--text-soft);
+  background: var(--card);
+  padding: 2px 9px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.word-preview .wp-item:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+.word-preview .wp-more {
+  color: var(--muted);
+  font-style: italic;
+  padding: 2px 6px;
+}
