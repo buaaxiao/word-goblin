@@ -14,7 +14,7 @@ let wordDragOverIndex = null;
 const DEDUPE_KEY = 'wordDictation.dedupe.v1';
 let dedupeWords = false;
 function loadDedupe() {
-  try { dedupeWords = localStorage.getItem(DEDUPE_KEY) === '1'; } catch (e) {}
+  try { dedupeWords = localStorage.getItem(DEDUPE_KEY) === '1'; } catch (e) { }
   applyDedupeUI();
 }
 function applyDedupeUI() {
@@ -25,7 +25,7 @@ function applyDedupeUI() {
 }
 function toggleDedupe() {
   dedupeWords = !dedupeWords;
-  try { localStorage.setItem(DEDUPE_KEY, dedupeWords ? '1' : '0'); } catch (e) {}
+  try { localStorage.setItem(DEDUPE_KEY, dedupeWords ? '1' : '0'); } catch (e) { }
   openWordDetails.clear();
   applyDedupeUI();
   collapseState.word = false;
@@ -68,14 +68,14 @@ function buildWordRowHtml(w, key, opts) {
   // 单词列
   const wordHtml =
     '<span class="word-cell">' +
-      '<span class="wtext" title="' + esc(wordTip) + '" onclick="toggleWordDetail(' + key + ')">' +
-        highlightText(w.text, wordSearchQuery) +
-      '</span>' +
-      (w.meaning
-        ? '<span class="wmeaning" title="' + esc(w.meaning) + '">' +
-            highlightText(w.meaning, wordSearchQuery) +
-          '</span>'
-        : '') +
+    '<span class="wtext" title="' + esc(wordTip) + '" onclick="toggleWordDetail(' + key + ')">' +
+    highlightText(w.text, wordSearchQuery) +
+    '</span>' +
+    (w.meaning
+      ? '<span class="wmeaning" title="' + esc(w.meaning) + '">' +
+      highlightText(w.meaning, wordSearchQuery) +
+      '</span>'
+      : '') +
     '</span>';
 
   // 5 个统计列
@@ -89,8 +89,8 @@ function buildWordRowHtml(w, key, opts) {
   // 操作列
   const actionsHtml =
     '<span class="wstat-actions">' +
-      '<button class="icon-btn" onclick="editWord(' + key + ')" title="编辑">✎</button>' +
-      '<button class="icon-btn" onclick="deleteWord(' + key + ')" title="删除">🗑</button>' +
+    '<button class="icon-btn" onclick="editWord(' + key + ')" title="编辑">✎</button>' +
+    '<button class="icon-btn" onclick="deleteWord(' + key + ')" title="删除">🗑</button>' +
     '</span>';
 
   // 查看模式：6 槽（单词 + 5 统计）
@@ -101,10 +101,15 @@ function buildWordRowHtml(w, key, opts) {
 
   // 编辑模式（单章节，有手柄）：8 槽
   return '<span class="drag-handle" title="拖动排序">≡</span>' +
-         wordHtml + statsHtml + actionsHtml;
+    wordHtml + statsHtml + actionsHtml;
 }
-
 function renderWords() {
+  // ★ 最优先：同步折叠状态，避免列表内容闪现
+  const wBody = $('wordBody');
+  if (wBody) {
+    wBody.classList.toggle('collapsed', collapseState.word && !wordSearchQuery);
+  }
+
   const el = $('wordList');
   el.innerHTML = '';
   const titleEl = $('wordChapterTitle');
@@ -123,8 +128,11 @@ function renderWords() {
   const multi = selectedIdx.length > 1;
   if (!multi && currentChapter !== selectedIdx[0]) currentChapter = selectedIdx[0];
   const noHandle = multi || dedupeWords;
-  const wBody = $('wordBody');
-  if (wBody) wBody.classList.toggle('multi-ch', noHandle);
+
+  // 把 multi-ch 也在这里设置（与 collapsed 同处，保持一次 DOM 操作）
+  if (wBody) {
+    wBody.classList.toggle('multi-ch', noHandle);
+  }
 
   const items = getMergedItems();
   const rawCount = items._raw;
@@ -149,19 +157,19 @@ function renderWords() {
     else badge.textContent = items.length + ' 词';
   }
 
-  // 折叠预览（编辑模式、未搜索）
-  if (wordMode !== 'view' && collapseState.word && !wordSearchQuery && items.length > 0) {
-    const preview = document.createElement('div');
-    preview.className = 'word-preview';
-    const maxShow = 20;
-    preview.innerHTML = items.slice(0, maxShow).map(it =>
-      '<span class="wp-item">' + esc(it.w.text) + '</span>'
-    ).join('') +
-    (items.length > maxShow ? '<span class="wp-more">…还有 ' + (items.length - maxShow) + ' 个</span>' : '');
-    el.appendChild(preview);
-    updateStats();
-    return;
-  }
+  // // 折叠预览（编辑模式、未搜索）
+  // if (wordMode !== 'view' && collapseState.word && !wordSearchQuery && items.length > 0) {
+  //   const preview = document.createElement('div');
+  //   preview.className = 'word-preview';
+  //   const maxShow = 20;
+  //   preview.innerHTML = items.slice(0, maxShow).map(it =>
+  //     '<span class="wp-item">' + esc(it.w.text) + '</span>'
+  //   ).join('') +
+  //   (items.length > maxShow ? '<span class="wp-more">…还有 ' + (items.length - maxShow) + ' 个</span>' : '');
+  //   el.appendChild(preview);
+  //   updateStats();
+  //   return;
+  // }
 
   if (!items.length) {
     el.innerHTML = '<div class="empty-state">暂无单词，请先添加或勾选其他章节</div>';
@@ -190,11 +198,11 @@ function renderWords() {
 
     const detailHtml =
       '<div class="word-detail' + (isOpen ? ' show' : '') + '" id="wd-' + key + '">' +
-        '<div class="detail-row"><span class="detail-label">练习总次数</span><span class="detail-value">' + total + ' 次</span></div>' +
-        '<div class="detail-row"><span class="detail-label">正确 / 错误</span><span class="detail-value"><span style="color:var(--ok);">' + (w.correctCount||0) + '</span> / <span style="color:var(--danger);">' + (w.wrongCount||0) + '</span></span></div>' +
-        '<div class="detail-row"><span class="detail-label">得分记录</span><span class="detail-value">' + (w.scoreCount||0) + ' 次，均分 ' + avg(w) + '</span></div>' +
-        '<div class="detail-row"><span class="detail-label">正确率</span><span class="detail-value">' + okPct + '%</span></div>' +
-        '<div class="detail-bar"><div class="bar-ok" style="width:' + okPct + '%"></div><div class="bar-wrong" style="width:' + wrongPct + '%"></div></div>' +
+      '<div class="detail-row"><span class="detail-label">练习总次数</span><span class="detail-value">' + total + ' 次</span></div>' +
+      '<div class="detail-row"><span class="detail-label">正确 / 错误</span><span class="detail-value"><span style="color:var(--ok);">' + (w.correctCount || 0) + '</span> / <span style="color:var(--danger);">' + (w.wrongCount || 0) + '</span></span></div>' +
+      '<div class="detail-row"><span class="detail-label">得分记录</span><span class="detail-value">' + (w.scoreCount || 0) + ' 次，均分 ' + avg(w) + '</span></div>' +
+      '<div class="detail-row"><span class="detail-label">正确率</span><span class="detail-value">' + okPct + '%</span></div>' +
+      '<div class="detail-bar"><div class="bar-ok" style="width:' + okPct + '%"></div><div class="bar-wrong" style="width:' + wrongPct + '%"></div></div>' +
       '</div>';
 
     d.innerHTML = buildWordRowHtml(w, key, { viewMode, noHandle, wordSearchQuery }) + detailHtml;
@@ -205,7 +213,7 @@ function renderWords() {
         d.classList.add('dragging');
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', i);
-        try { e.dataTransfer.setData('text/html', d.innerHTML); } catch (ex) {}
+        try { e.dataTransfer.setData('text/html', d.innerHTML); } catch (ex) { }
       });
       d.addEventListener('dragend', function () {
         d.classList.remove('dragging');

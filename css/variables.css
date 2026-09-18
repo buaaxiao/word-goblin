@@ -1,0 +1,68 @@
+/* ===================================================================
+ * variables.css — 全局变量 & 主题
+ * 必须第一个引入，其它 CSS 依赖这些变量
+ * =================================================================== */
+
+:root {
+    --primary: #4a7cff;
+    --primary-dark: #3558c4;
+    --primary-light: #eaf0ff;
+    --danger: #f05252;
+    --danger-light: #fde8e8;
+    --ok: #22a06b;
+    --ok-light: #e3f5ec;
+    --warn: #f59e0b;
+    --warn-light: #fef3c7;
+    --bg: #f5f7fb;
+    --bg-gradient: linear-gradient(180deg, #eef3fb 0%, #f5f7fb 100%);
+    --card: #ffffff;
+    --card-soft: #f8fafd;
+    --text: #1f2937;
+    --text-soft: #4b5563;
+    --muted: #9ca3af;
+    --border: #e5e9f0;
+    --border-strong: #d1d9e6;
+    --shadow-sm: 0 1px 3px rgba(31, 41, 55, 0.06);
+    --shadow-md: 0 4px 16px rgba(74, 124, 255, 0.10);
+    --shadow-lg: 0 12px 32px rgba(74, 124, 255, 0.16);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --highlight: #fff3a3;
+    --highlight-text: #7c4a03;
+    /* 单词表格列宽 */
+    --col-handle: 34px;
+    --col-num: 48px;
+    --col-date: 100px;
+    --col-score: 56px;
+    --col-actions: 72px;
+    --table-gap: 8px;
+}
+
+body.dark {
+    --primary: #6b95ff;
+    --primary-dark: #4a7cff;
+    --primary-light: #1e2a4a;
+    --danger: #f87171;
+    --danger-light: #3f1f1f;
+    --ok: #34d399;
+    --ok-light: #14372a;
+    --warn: #fbbf24;
+    --warn-light: #3f2f10;
+    --bg: #0f172a;
+    --bg-gradient: linear-gradient(180deg, #0d1322 0%, #0f172a 100%);
+    --card: #1a2332;
+    --card-soft: #232f42;
+    --text: #f1f5f9;
+    --text-soft: #cbd5e1;
+    --muted: #8896ab;
+    --border: #2a3447;
+    --border-strong: #3a465a;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.45);
+    --highlight: #4a3a05;
+    --highlight-text: #fde68a;
+    color-scheme: dark;
+}

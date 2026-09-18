@@ -45,7 +45,7 @@ function speak(text, lang) {
   return new Promise(resolve => {
     if (!('speechSynthesis' in window)) { resolve(); return; }
     const doSpeak = () => {
-      try { speechSynthesis.resume(); } catch (e) {}
+      try { speechSynthesis.resume(); } catch (e) { }
 
       const u = new SpeechSynthesisUtterance(text);
       const v = pickVoice(lang);
@@ -66,7 +66,7 @@ function speak(text, lang) {
     if (voicesReady) { doSpeak(); return; }
     let tries = 0;
     const wait = () => {
-      try { voiceList = speechSynthesis.getVoices(); voicesReady = voiceList.length > 0; } catch (e) {}
+      try { voiceList = speechSynthesis.getVoices(); voicesReady = voiceList.length > 0; } catch (e) { }
       if (voicesReady || ++tries > 12) { doSpeak(); return; }
       setTimeout(wait, 100);
     };
@@ -76,7 +76,7 @@ function speak(text, lang) {
 
 function testSpeech() {
   if (!('speechSynthesis' in window)) { toast('当前浏览器不支持语音'); return; }
-  try { speechSynthesis.resume(); } catch (e) {}
+  try { speechSynthesis.resume(); } catch (e) { }
   const zh = '你好，我是单词精灵，现在测试发音。';
   const u = new SpeechSynthesisUtterance(zh);
   const v = pickVoice('zh-CN');
@@ -236,17 +236,44 @@ function startDictQuick() {
   setTimeout(function () { startDictation(); }, 350);
 }
 
-// 打开默写弹窗
+// 打开默写弹窗（使用真正的 modal 打开逻辑：焦点陷阱、滚动锁定、焦点返还）
 function openDict() {
   const m = $('dictModal');
-  if (m) m.classList.remove('hidden');
+  if (!m) return;
+  if (!m.innerHTML.trim() && window.__PARTIAL_dictModal) {
+    m.innerHTML = window.__PARTIAL_dictModal;
+  }
+  openModalEl(m);
 }
 
-// 关闭默写弹窗（若正在默写则先停止）
+// 关闭默写弹窗：正在默写时先弹确认框
 function closeDict() {
-  stopDictation();
   const m = $('dictModal');
-  if (m) m.classList.add('hidden');
+  if (!m) return;
+
+  if (dict.running) {
+    // 暂停 TTS，避免确认框打开期间还在读
+    try { speechSynthesis.pause(); } catch (e) { }
+
+    confirmDialog(
+      '停止默写',
+      '默写仍在进行中，确定要停止并关闭吗？<br>' +
+      '停止后当前进度将不再保留。',
+      function () {
+        // 点「确定」：停止默写、关闭弹窗
+        stopDictation();
+        closeModalEl(m);
+      },
+      function () {
+        // 点「取消」：恢复语音，保持默写继续
+        try { speechSynthesis.resume(); } catch (e) { }
+      }
+    );
+    return;
+  }
+
+  // 未在默写（idle 或 review 阶段）：直接关闭
+  closeModalEl(m);
 }
 
 async function runDictation() {
@@ -278,26 +305,26 @@ async function runDictation() {
       if (!dict.running) return;
 
       if (result.action === 'prev') {
-        try { speechSynthesis.cancel(); } catch (e) {}
+        try { speechSynthesis.cancel(); } catch (e) { }
         if (i > 0) { i--; skipCurrent = true; break; }
-        else { toast('已经是第一个了'); try { await speechPromise; } catch(e){} continue; }
+        else { toast('已经是第一个了'); try { await speechPromise; } catch (e) { } continue; }
       } else if (result.action === 'next') {
-        try { speechSynthesis.cancel(); } catch (e) {}
+        try { speechSynthesis.cancel(); } catch (e) { }
         skipCurrent = true;
         break;
       } else if (result.action === 'replay') {
-        try { speechSynthesis.cancel(); } catch (e) {}
+        try { speechSynthesis.cancel(); } catch (e) { }
         r--;
         continue;
       }
 
-      try { await speechPromise; } catch (e) {}
+      try { await speechPromise; } catch (e) { }
 
       if (r < dict.repeatCount - 1) {
         const gapResult = await waitOrAction(dict.repeatIntervalMs);
         if (!dict.running) return;
         if (gapResult.action === 'prev') {
-          try { speechSynthesis.cancel(); } catch (e) {}
+          try { speechSynthesis.cancel(); } catch (e) { }
           if (i > 0) { i--; skipCurrent = true; break; }
           else { toast('已经是第一个了'); }
           break;
@@ -358,7 +385,7 @@ function pauseResume() {
     $('pauseBtn').textContent = '⏸ 暂停';
   } else {
     dict.paused = true;
-    try { speechSynthesis.cancel(); } catch (e) {}
+    try { speechSynthesis.cancel(); } catch (e) { }
     $('pauseBtn').textContent = '▶ 继续';
   }
 }
@@ -369,7 +396,7 @@ function stopDictation() {
   if (dict.skipResolve) { dict.skipResolve(); dict.skipResolve = null; }
   if (dict.prevResolve) { dict.prevResolve(); dict.prevResolve = null; }
   if (dict.replayResolve) { dict.replayResolve(); dict.replayResolve = null; }
-  try { speechSynthesis.cancel(); } catch (e) {}
+  try { speechSynthesis.cancel(); } catch (e) { }
   stopTimer();
   showPhase('idle');
 }
@@ -377,17 +404,17 @@ function stopDictation() {
 function nextWord() {
   if (dict.phase !== 'playing' || !dict.running) return;
   if (dict.skipResolve) dict.skipResolve();
-  try { speechSynthesis.cancel(); } catch (e) {}
+  try { speechSynthesis.cancel(); } catch (e) { }
 }
 function prevWord() {
   if (dict.phase !== 'playing' || !dict.running) return;
   if (dict.prevResolve) dict.prevResolve();
-  try { speechSynthesis.cancel(); } catch (e) {}
+  try { speechSynthesis.cancel(); } catch (e) { }
 }
 function replayWord() {
   if (dict.phase !== 'playing' || !dict.running) return;
   if (dict.replayResolve) dict.replayResolve();
-  try { speechSynthesis.cancel(); } catch (e) {}
+  try { speechSynthesis.cancel(); } catch (e) { }
 }
 
 function showPhase(p) {

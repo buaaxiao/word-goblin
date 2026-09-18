@@ -55,7 +55,7 @@ function renderChart() {
 
   const dots = points.map((p, i) =>
     '<circle class="chart-dot" cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="4">' +
-      '<title>' + esc(p.item.date || '') + ' · ' + p.score.toFixed(1) + ' 分 · ' + (p.item.total || 0) + ' 词</title>' +
+    '<title>' + esc(p.item.date || '') + ' · ' + p.score.toFixed(1) + ' 分 · ' + (p.item.total || 0) + ' 词</title>' +
     '</circle>'
   ).join('');
 
@@ -68,34 +68,34 @@ function renderChart() {
 
   const svg =
     '<div class="chart-wrap">' +
-      '<svg class="chart-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
-        '<defs>' +
-          '<linearGradient id="chartGradient" x1="0" y1="0" x2="1" y2="0">' +
-            '<stop offset="0%" stop-color="#5b8def"/>' +
-            '<stop offset="100%" stop-color="#4a7cff"/>' +
-          '</linearGradient>' +
-          '<linearGradient id="chartAreaGradient" x1="0" y1="0" x2="0" y2="1">' +
-            '<stop offset="0%" stop-color="#4a7cff" stop-opacity="0.3"/>' +
-            '<stop offset="100%" stop-color="#4a7cff" stop-opacity="0"/>' +
-          '</linearGradient>' +
-        '</defs>' +
-        gridLines +
-        '<path class="chart-area" d="' + areaPath + '"/>' +
-        '<path class="chart-line" d="' + linePath + '"/>' +
-        dots +
-        xLabels +
-      '</svg>' +
-      '<div class="chart-legend">' +
-        '<span class="legend-item"><span class="dot"></span> 每次得分</span>' +
-        '<span class="legend-item">📅 日期</span>' +
-      '</div>' +
-      '<div class="chart-stats">' +
-        '<span class="cs-item">平均分 <b>' + avgScore + '</b></span>' +
-        '<span class="cs-item">最高 <b>' + maxScore + '</b></span>' +
-        '<span class="cs-item">最低 <b>' + minScore + '</b></span>' +
-        '<span class="cs-item">总词数 <b>' + totalWords + '</b></span>' +
-        '<span class="cs-item">总错词 <b>' + totalWords + '</b></span>' +
-      '</div>' +
+    '<svg class="chart-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
+    '<defs>' +
+    '<linearGradient id="chartGradient" x1="0" y1="0" x2="1" y2="0">' +
+    '<stop offset="0%" stop-color="#5b8def"/>' +
+    '<stop offset="100%" stop-color="#4a7cff"/>' +
+    '</linearGradient>' +
+    '<linearGradient id="chartAreaGradient" x1="0" y1="0" x2="0" y2="1">' +
+    '<stop offset="0%" stop-color="#4a7cff" stop-opacity="0.3"/>' +
+    '<stop offset="100%" stop-color="#4a7cff" stop-opacity="0"/>' +
+    '</linearGradient>' +
+    '</defs>' +
+    gridLines +
+    '<path class="chart-area" d="' + areaPath + '"/>' +
+    '<path class="chart-line" d="' + linePath + '"/>' +
+    dots +
+    xLabels +
+    '</svg>' +
+    '<div class="chart-legend">' +
+    '<span class="legend-item"><span class="dot"></span> 每次得分</span>' +
+    '<span class="legend-item">📅 日期</span>' +
+    '</div>' +
+    '<div class="chart-stats">' +
+    '<span class="cs-item">平均分 <b>' + avgScore + '</b></span>' +
+    '<span class="cs-item">最高 <b>' + maxScore + '</b></span>' +
+    '<span class="cs-item">最低 <b>' + minScore + '</b></span>' +
+    '<span class="cs-item">总词数 <b>' + totalWords + '</b></span>' +
+    '<span class="cs-item">总错词 <b>' + totalWords + '</b></span>' +
+    '</div>' +
     '</div>';
   container.innerHTML = svg;
 }
@@ -124,14 +124,14 @@ function renderHistory() {
     return '<div class="history-item">' +
       '<div class="history-score" style="background:' + color + '">' + Math.round(score) + '</div>' +
       '<div class="history-info">' +
-        '<div class="history-title">' + esc(h.chapters || '—') + '</div>' +
-        '<div class="history-meta">' +
-          '<span>📅 ' + esc(h.date || '') + '</span>' +
-          '<span>📝 ' + (h.total || 0) + ' 词</span>' +
-          '<span style="color:var(--danger);">❌ ' + (h.wrongCount || 0) + '</span>' +
-        '</div>' +
+      '<div class="history-title">' + esc(h.chapters || '—') + '</div>' +
+      '<div class="history-meta">' +
+      '<span>📅 ' + esc(h.date || '') + '</span>' +
+      '<span>📝 ' + (h.total || 0) + ' 词</span>' +
+      '<span style="color:var(--danger);">❌ ' + (h.wrongCount || 0) + '</span>' +
       '</div>' +
-    '</div>';
+      '</div>' +
+      '</div>';
   }).join('');
 }
 
@@ -142,16 +142,4 @@ function clearHistory() {
   renderHistory();
   renderChart();
   toast('历史已清空');
-}
-
-// 统计弹窗：集成默写趋势 + 默写历史
-function openStats() {
-  renderChart();
-  renderHistory();
-  const m = $('statsModal');
-  if (m) m.classList.remove('hidden');
-}
-function closeStats() {
-  const m = $('statsModal');
-  if (m) m.classList.add('hidden');
 }
