@@ -256,12 +256,19 @@ function normalizeWord(w) {
 // ===================================================================
 function syncFromCloud() {
   confirmDialog(
-    "数据同步",
-    "将从 <b>data.json</b> 合并词库：<br>" +
+    "☁️ 云端同步",
+    '<div style="color:var(--text-soft);font-size:14px;line-height:1.7;">' +
+      '将从 <b style="color:var(--primary);">云端</b> 同步词库：<br>' +
       "· 本地独有的章节和单词会保留<br>" +
       "· 云端独有的章节会追加<br>" +
-      "· 同名章节按单词去重合并<br><br>" +
-      "确定继续？",
+      "· 同名章节按单词去重合并" +
+      "</div>" +
+      '<div style="margin-top:10px;padding:8px 12px;background:var(--primary-light);' +
+      'border-radius:8px;color:var(--primary);font-size:13px;font-weight:600;">' +
+      "📡 此操作需要网络连接" +
+      "</div>" +
+      '<div style="margin-top:12px;text-align:center;color:var(--text-soft);font-size:14px;">' +
+      "</div>",
     doSyncFromCloud,
   );
 }
