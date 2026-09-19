@@ -4,6 +4,7 @@
  *   - 章节列表渲染 / 选择 / 切换 / 增删
  *   - 拖拽排序
  *   - 表头复选框（全选/半选/未选、禁用态）
+ *   - 无可见章节时自动折叠章节列表
  *
  * 弹窗相关见 chapters-modals.js
  * 搜索下拉 + 打字机提示见 chapters-search.js
@@ -59,6 +60,19 @@ function getVisibleChapters() {
       if (q && ch.name.toLowerCase().indexOf(q) < 0) return false;
       return true;
     });
+}
+
+/* =================================================================
+ * 自动折叠：当章节列表没有可见章节时，收起 collapse-body
+ *   展开由「下拉面板勾选」触发的 autoExpandChapterListIfAny()（在 chapters-search.js）
+ * ================================================================= */
+function autoCollapseChapterIfEmpty() {
+  if (typeof collapseState === "undefined") return;
+  if (collapseState.chapter === true) return; // 已折叠
+
+  collapseState.chapter = true;
+  if (typeof saveCollapseState === "function") saveCollapseState();
+  if (typeof applyCollapseState === "function") applyCollapseState();
 }
 
 /* ===== 章节表头：全选 / 取消全选 ===== */
@@ -138,16 +152,23 @@ function renderChapterList() {
     filtered = filtered.filter((item) => isChapterVisible(item.ch, item.ci));
   }
 
+  // ===== 徽章文字 =====
   if (badge) {
     if (chapterSearchQuery) {
       badge.textContent = "找到 " + filtered.length + " 个";
     } else {
       const selected = data.chapters.filter((c) => c.selected).length;
-      badge.textContent =
-        data.chapters.length + " 章节" + (selected ? " · 选 " + selected : "");
+      const total = data.chapters.length;
+      if (selected === 0) {
+        // ★ 无已选章节 → 提示去搜索栏选定
+        badge.textContent = "未在搜索栏中选定章节";
+      } else {
+        badge.textContent = total + " 章节 · 选 " + selected;
+      }
     }
   }
 
+  // ===== 无可见章节 =====
   if (!filtered.length) {
     if (chapterSearchQuery) {
       el.innerHTML =
@@ -160,9 +181,13 @@ function renderChapterList() {
     }
     updateChapterHeaderCheckbox();
     updateStats();
+
+    // ★ 无可见章节 → 自动折叠章节列表
+    autoCollapseChapterIfEmpty();
     return;
   }
 
+  // ===== 有可见章节 → 渲染行 =====
   filtered.forEach(({ ch, ci }) => {
     const d = document.createElement("div");
     const viewMode = chapterMode === "view";
@@ -204,7 +229,7 @@ function renderChapterList() {
       " 词" +
       "</span>";
 
-    // ★ 编辑/删除：不用 disabled 属性，改用 .disabled class + onclick 提示
+    // 编辑/删除：不用 disabled 属性，改用 .disabled class + onclick 提示
     const editBtnHtml = viewMode
       ? '<button class="icon-btn disabled" title="查看模式下不可编辑" ' +
         "onclick=\"showDisabledTip(event, '编辑', '查看模式')\">✎</button>"
@@ -279,6 +304,9 @@ function renderChapterList() {
 
   updateChapterHeaderCheckbox();
   updateStats();
+
+  // ★ 有可见章节 → 不强制展开（尊重用户手动折叠）
+  //    展开由「下拉面板勾选」触发的 autoExpandChapterListIfAny() 完成
 }
 
 function clearDragOverStyles() {
