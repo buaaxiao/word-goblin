@@ -44,7 +44,7 @@ function toggleDedupe() {
   openWordDetails.clear();
   applyDedupeUI();
 
-  collapseState.word = false;
+  config.wordCollapsed = false;
   if (typeof saveCollapseState === "function") saveCollapseState();
   if (typeof applyCollapseState === "function") applyCollapseState();
 
@@ -177,7 +177,6 @@ function buildWordRowHtml(w, key, opts) {
   if (viewMode) disabledReason = "查看模式";
   else if (multi) disabledReason = "多章节合集";
   else if (dedupe) disabledReason = "去重模式";
-  else if (wordCount <= 1) disabledReason = "单词数不足";
 
   const actionsDisabled = !!disabledReason;
 
@@ -220,7 +219,7 @@ function buildWordRowHtml(w, key, opts) {
 function renderWords() {
   console.log(
     "[renderWords] wordMode =",
-    wordMode,
+    config.wordMode,
     "dedupeWords =",
     dedupeWords,
   );
@@ -228,7 +227,7 @@ function renderWords() {
   // 折叠状态
   const wBody = $("wordBody");
   if (wBody) {
-    wBody.classList.toggle("collapsed", collapseState.word && !wordSearchQuery);
+    wBody.classList.toggle("collapsed", config.wordCollapsed && !wordSearchQuery);
   }
 
   const el = $("wordList");
@@ -346,7 +345,7 @@ function renderWords() {
     const isOpen = openWordDetails.has(key);
     const w = it.w;
     const d = document.createElement("div");
-    const viewMode = wordMode === "view";
+    const viewMode = config.wordMode === "view";
     d.className = "word-item" + (viewMode ? " view-mode" : "");
     d.setAttribute("draggable", "false");
     d.dataset.index = i;
@@ -533,18 +532,20 @@ function deleteWord(i) {
   const wordText = it.w.text || "";
   const meaning = it.w.meaning ? "（" + it.w.meaning + "）" : "";
 
-  confirmDialog(
-    "删除单词",
-    "确定删除单词 <b>" +
+  openConfirmModal({
+    title: "删除单词",
+    body:
+      "确定删除单词 <b>" +
       esc(wordText) +
       "</b>" +
       esc(meaning) +
-      " 吗？<br>" +
-      "此操作不可撤销。",
-    function () {
+      " 吗？<br>此操作不可撤销。",
+    danger: true, // ★ √ 变红
+    okTitle: "删除",
+    onOk: function () {
       doDeleteWord(i);
     },
-  );
+  });
 }
 
 function doDeleteWord(i) {
@@ -563,34 +564,47 @@ function editWord(i) {
   const it = getMergedItems()[i];
   if (!it) return;
   const w = it.w;
-  openModal(
-    "修改单词",
-    '<label>单词</label><input id="mText" class="input" value="' +
+
+  openFormModal({
+    title: "修改单词",
+    body:
+      "<label>单词</label>" +
+      '<input id="mText" class="input" value="' +
       esc(w.text) +
       '">' +
-      '<label>释义</label><input id="mMeaning" class="input" value="' +
+      "<label>释义</label>" +
+      '<input id="mMeaning" class="input" value="' +
       esc(w.meaning) +
-      '">' +
-      '<div class="row"><button onclick="closeModal()">取消</button>' +
-      '<button class="primary" onclick="doEditWord(' +
-      i +
-      ')">确定</button></div>',
-  );
+      '">',
+    saveTitle: "保存",
+    cancelTitle: "取消",
+    onSave: function () {
+      return doEditWord(i);
+    },
+  });
 }
 
 function doEditWord(i) {
   const text = $("mText").value.trim();
   if (!text) {
     toast("单词不能为空");
-    return;
+    return false; // 不关弹窗
   }
   const it = getMergedItems()[i];
-  if (!it) return;
+  if (!it) return false;
   const w = data.chapters[it.ci].words[it.wi];
   w.text = text;
   w.meaning = $("mMeaning").value.trim();
-  saveData();
-  renderWords();
-  renderChapterList();
-  closeModal();
+
+  try {
+    saveData();
+    renderWords();
+    renderChapterList();
+    toast("✅ 已修改单词：" + text);
+    return true; // 关弹窗
+  } catch (e) {
+    console.error("修改单词失败：", e);
+    toast("❌ 修改失败：" + (e && e.message ? e.message : e));
+    return false;
+  }
 }

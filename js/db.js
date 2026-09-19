@@ -1,11 +1,11 @@
 /* ===================================================================
  * js/db.js — IndexedDB 封装
  *   数据库：wordGoblinLocal
- *   对象仓库：chapters / words / history
+ *   对象仓库：chapters / words / history / settings
  * =================================================================== */
 
 const DB_NAME = "wordGoblinLocal";
-const DB_VERSION = 1;
+const DB_VERSION = 2; // ★ 1 → 2：新增 settings store
 
 let __dbPromise = null;
 
@@ -22,7 +22,6 @@ function openDB() {
         const store = db.createObjectStore("chapters", { keyPath: "id" });
         store.createIndex("order", "order", { unique: false });
         store.createIndex("name", "name", { unique: false });
-        // ★ 新增：shareName 索引（用于"本地-共享"稳定匹配）
         store.createIndex("shareName", "shareName", { unique: false });
       }
       if (!db.objectStoreNames.contains("words")) {
@@ -33,6 +32,10 @@ function openDB() {
       if (!db.objectStoreNames.contains("history")) {
         const store = db.createObjectStore("history", { keyPath: "id" });
         store.createIndex("date", "date", { unique: false });
+      }
+      // ★ 新增：settings store（key-value）
+      if (!db.objectStoreNames.contains("settings")) {
+        db.createObjectStore("settings", { keyPath: "key" });
       }
     };
 
@@ -155,13 +158,39 @@ async function dbClearHistory() {
   return dbTx("history", "readwrite", (s) => s.clear());
 }
 
-/* ===== 全清 ===== */
+/* ===== 设置（settings store） ===== */
+async function dbGetSetting(key) {
+  return dbTx("settings", "readonly", (store) => {
+    const req = store.get(key);
+    return new Promise((res) => {
+      req.onsuccess = () => res(req.result ? req.result.value : undefined);
+      req.onerror = () => res(undefined);
+    });
+  });
+}
+async function dbPutSetting(key, value) {
+  return dbTx("settings", "readwrite", (s) => s.put({ key, value }));
+}
+async function dbGetAllSettings() {
+  return dbTx("settings", "readonly", (store) => {
+    const result = [];
+    store.openCursor().onsuccess = (e) => {
+      const c = e.target.result;
+      if (c) {
+        result.push(c.value);
+        c.continue();
+      }
+    };
+    return new Promise((res) => setTimeout(() => res(result), 0));
+  });
+}
+async function dbDeleteSetting(key) {
+  return dbTx("settings", "readwrite", (s) => s.delete(key));
+}
+
+/* ===== 全清（不包含 settings，设置独立管理） ===== */
 async function dbClearAll() {
   await dbClearChapters();
   await dbClearWords();
   await dbClearHistory();
-}
-
-async function dbDeleteHistory(id) {
-  return dbTx("history", "readwrite", (s) => s.delete(id));
 }

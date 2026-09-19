@@ -256,13 +256,15 @@ function renderHistory() {
 
 // 清空历史：弹出确认对话框
 function confirmClearHistory() {
-  confirmDialog(
-    "清空历史",
-    "确定要清空全部默写历史记录吗？<br>" + "此操作不可撤销。",
-    function () {
+  openConfirmModal({
+    title: "清空历史",
+    body: "确定要清空全部默写历史记录吗？<br>此操作不可撤销。",
+    danger: true, // ★ √ 变红
+    okTitle: "清空",
+    onOk: function () {
       doClearHistory();
     },
-  );
+  });
 }
 
 // 实际清空历史

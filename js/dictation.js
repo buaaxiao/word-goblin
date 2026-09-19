@@ -83,7 +83,16 @@ function speak(text, lang) {
         lastSpeechError = (e && e.error) || "unknown";
         finish();
       };
-      setTimeout(finish, Math.max(3000, text.length * 500 + 1500));
+      // ★ 兜底超时：时间延长到 8 秒起，且兜底时 cancel 掉残留 TTS
+      setTimeout(
+        () => {
+          try {
+            speechSynthesis.cancel();
+          } catch (e) {}
+          finish();
+        },
+        Math.max(8000, text.length * 1000 + 4000),
+      );
       try {
         speechSynthesis.speak(u);
       } catch (e) {
@@ -266,51 +275,47 @@ function waitOrAction(timeoutMs) {
 }
 
 function startDictation() {
-  dict.intervalMs = (parseInt($("intervalSec").value, 10) || 0) * 1000;
-  dict.repeatCount = Math.max(1, parseInt($("repeatCount").value, 10) || 3);
-  dict.repeatIntervalMs =
-    (parseInt($("repeatIntervalSec").value, 10) || 0) * 1000;
-  // 报词方式默认取「第一个选中章节」的设置；多章节时给出提示
+  // ★ 从持久化设置读（不依赖 DOM）
+  const s = getDictationSettings();
+  dict.intervalMs = (s.intervalSec || 0) * 1000;
+  dict.repeatCount = Math.max(1, s.repeatCount || 3);
+  dict.repeatIntervalMs = (s.repeatIntervalSec || 0) * 1000;
+
+  // ★ 报词方式只看设置（默认汉语）
+  const dl = normalizeDictLang(getDefaultDictLang());
+  dict.speakChinese = dictLangIsChinese(dl);
+
+  dict.mode = s.mode || 0;
+
+  // 选中章节检查
   const selChs = data.chapters.filter((c) => c.selected);
   if (!selChs.length) {
     showAlert("未选中任何章节，不能开始默写");
     return;
-  } // 无选中章节不可开始默写
-  const firstCh = selChs[0];
-  let dl = getDefaultDictLang(); // 默认按设置界面报词方式
-  if (firstCh) {
-    dl =
-      typeof firstCh.dictLang === "number"
-        ? firstCh.dictLang
-        : getDefaultDictLang(); // 章节无 dictLang 时按设置界面默认
-    $("langSel").value = String(dl);
   }
-  dict.speakChinese = $("langSel").value === "1";
-  dict.mode = parseInt($("modeSel").value, 10) || 0;
   dict.selectedChapters = selChs.map((c) => c.name);
-  const hint = $("dictLangHint");
-  if (hint) {
-    if (selChs.length > 1 && firstCh) {
-      hint.textContent =
-        "已选择 " +
-        selChs.length +
-        " 个章节，将按第一个章节「" +
-        firstCh.name +
-        "」的报词方式：" +
-        (dl === 1 ? "汉语" : "English");
-      hint.classList.remove("hidden");
-    } else {
-      hint.classList.add("hidden");
-    }
-  }
 
-  const items = collectItems();
+  // 多章节报词方式提示：不再需要
+  const hint = $("dictLangHint");
+  if (hint) hint.classList.add("hidden");
+
+  let items = collectItems();
   if (!items.length) {
     toast(noItemsMessage());
     return;
   }
 
-  shuffle(items);
+  // ★ 按"播报顺序"处理
+  const order = s.playOrder || 0;
+  if (order === 1) {
+    // 随机：打乱
+    shuffle(items);
+  } else if (order === 3) {
+    // 单一：只播第一个
+    items = items.slice(0, 1);
+  }
+  // order === 0（顺序）/ 2（循环）：保持原顺序
+
   dict.items = items;
   dict.marks = items.map(() => "");
   dict.idx = 0;
@@ -335,127 +340,56 @@ function startDictQuick() {
   if (!selChs.length) {
     showAlert("未选中任何章节，不能开始默写");
     return;
-  } // 无选中章节不弹默写对话框
+  }
+  if (!hasItemsToDictate()) {
+    toast(noItemsMessage());
+    return;
+  }
   openDict();
   setTimeout(function () {
     startDictation();
   }, 350);
 }
 
-// 打开默写弹窗（使用真正的 modal 打开逻辑：焦点陷阱、滚动锁定、焦点返还）
-function openDict() {
-  const m = $("dictModal");
-  if (!m) return;
-  if (!m.innerHTML.trim() && window.__PARTIAL_dictModal) {
-    m.innerHTML = window.__PARTIAL_dictModal;
-  }
-  openModalEl(m);
-}
-
-// 关闭默写弹窗：
-//   - 正在播报 → 弹确认框，确定则「停止播报并进入复习」，不关闭弹窗
-//   - 未在播报 → 直接关闭
-function closeDict() {
-  const m = $("dictModal");
-  if (!m) return;
-
-  if (dict.running) {
-    // 暂停 TTS，避免确认框打开期间还在读
-    try {
-      speechSynthesis.pause();
-    } catch (e) {}
-
-    confirmDialog(
-      "停止默写",
-      "默写仍在进行中，确定要停止吗？<br>" +
-        "停止后将进入「默写完成」，可以逐个标记错误。",
-      function () {
-        // 点「确定」：停止播报并进入复习，不关闭弹窗
-        // 先恢复语音（清掉 pause 状态），再走 finishDictation
-        try {
-          speechSynthesis.resume();
-        } catch (e) {}
-        finishDictation();
-      },
-      function () {
-        // 点「取消」：恢复语音，保持默写继续
-        try {
-          speechSynthesis.resume();
-        } catch (e) {}
-      },
-    );
-    return;
-  }
-
-  // 未在播报（idle 或 review 阶段）：直接关闭
-  closeModalEl(m);
-}
-
 async function runDictation() {
-  const items = dict.items;
-  let i = 0;
-  while (i < items.length && dict.running) {
-    if (dict.paused) await waitResume();
-    if (!dict.running) return;
+  const order = getDictationSettings().playOrder || 0;
+  const loopMode = order === 2;
 
-    dict.idx = i;
-    const it = items[i];
-    const spoken = dict.speakChinese && it.meaning ? it.meaning : it.text;
-    const lang = /[一-鿿]/.test(spoken) ? "zh-CN" : "en-US";
-    setCurrentWord(it.text);
-    setProgress(i, items.length);
-    updateNavButtons(i, items.length);
-
-    let skipCurrent = false;
-    for (let r = 0; r < dict.repeatCount; r++) {
-      if (!dict.running) return;
+  do {
+    const items = dict.items;
+    let i = 0;
+    while (i < items.length && dict.running) {
       if (dict.paused) await waitResume();
       if (!dict.running) return;
 
-      dict.currentRepeat = r;
-      const speechPromise = speak(spoken, lang);
-      const estimatedMs = Math.max(3000, spoken.length * 500 + 1500);
-      const result = await waitOrAction(estimatedMs);
-
-      if (!dict.running) return;
-
-      if (result.action === "prev") {
-        try {
-          speechSynthesis.cancel();
-        } catch (e) {}
-        if (i > 0) {
-          i--;
-          skipCurrent = true;
-          break;
-        } else {
-          toast("已经是第一个了");
-          try {
-            await speechPromise;
-          } catch (e) {}
-          continue;
-        }
-      } else if (result.action === "next") {
-        try {
-          speechSynthesis.cancel();
-        } catch (e) {}
-        skipCurrent = true;
-        break;
-      } else if (result.action === "replay") {
-        try {
-          speechSynthesis.cancel();
-        } catch (e) {}
-        r--;
-        continue;
-      }
+      dict.idx = i;
+      const it = items[i];
+      const spoken = dict.speakChinese && it.meaning ? it.meaning : it.text;
+      const hasChinese = /[\u4e00-\u9fff]/.test(spoken);
+      const lang = dict.speakChinese || hasChinese ? "zh-CN" : "en-US";
 
       try {
-        await speechPromise;
+        speechSynthesis.cancel();
       } catch (e) {}
 
-      if (r < dict.repeatCount - 1) {
-        const gapResult = await waitOrAction(dict.repeatIntervalMs);
+      setCurrentWord(it.text);
+      setProgress(i, items.length);
+      updateNavButtons(i, items.length);
+
+      let skipCurrent = false;
+      for (let r = 0; r < dict.repeatCount; r++) {
         if (!dict.running) return;
-        if (gapResult.action === "prev") {
+        if (dict.paused) await waitResume();
+        if (!dict.running) return;
+
+        dict.currentRepeat = r;
+        const speechPromise = speak(spoken, lang);
+        const estimatedMs = Math.max(3000, spoken.length * 500 + 1500);
+        const result = await waitOrAction(estimatedMs);
+
+        if (!dict.running) return;
+
+        if (result.action === "prev") {
           try {
             speechSynthesis.cancel();
           } catch (e) {}
@@ -465,43 +399,87 @@ async function runDictation() {
             break;
           } else {
             toast("已经是第一个了");
+            try {
+              await speechPromise;
+            } catch (e) {}
+            continue;
           }
-          break;
-        } else if (gapResult.action === "next") {
+        } else if (result.action === "next") {
+          try {
+            speechSynthesis.cancel();
+          } catch (e) {}
           skipCurrent = true;
           break;
-        } else if (gapResult.action === "replay") {
-          r = -1;
-          break;
+        } else if (result.action === "replay") {
+          try {
+            speechSynthesis.cancel();
+          } catch (e) {}
+          r--;
+          continue;
+        }
+
+        try {
+          await speechPromise;
+        } catch (e) {}
+
+        if (r < dict.repeatCount - 1) {
+          const gapResult = await waitOrAction(dict.repeatIntervalMs);
+          if (!dict.running) return;
+          if (gapResult.action === "prev") {
+            try {
+              speechSynthesis.cancel();
+            } catch (e) {}
+            if (i > 0) {
+              i--;
+              skipCurrent = true;
+              break;
+            } else {
+              toast("已经是第一个了");
+            }
+            break;
+          } else if (gapResult.action === "next") {
+            skipCurrent = true;
+            break;
+          } else if (gapResult.action === "replay") {
+            r = -1;
+            break;
+          }
         }
       }
-    }
 
-    if (!dict.running) return;
-    if (skipCurrent) {
-      i++;
-      continue;
-    }
+      if (!dict.running) return;
+      if (skipCurrent) {
+        i++;
+        continue;
+      }
 
-    let iv = dict.intervalMs;
-    if (it.text.length === 4) iv *= 2;
-    const gapResult = await waitOrAction(iv);
-    if (!dict.running) return;
-    if (gapResult.action === "prev") {
-      if (i > 0) {
-        i--;
+      let iv = dict.intervalMs;
+      if (it.text.length === 4) iv *= 2;
+      const gapResult = await waitOrAction(iv);
+      if (!dict.running) return;
+      if (gapResult.action === "prev") {
+        if (i > 0) {
+          i--;
+          continue;
+        } else {
+          toast("已经是第一个了");
+        }
+      } else if (gapResult.action === "next") {
+        i++;
+      } else if (gapResult.action === "replay") {
         continue;
       } else {
-        toast("已经是第一个了");
+        i++;
       }
-    } else if (gapResult.action === "next") {
-      i++;
-    } else if (gapResult.action === "replay") {
-      continue;
-    } else {
-      i++;
     }
-  }
+
+    // ★ 循环模式：重置 idx，从头再来；顺序/随机/单一：退出
+    if (loopMode && dict.running) {
+      dict.idx = 0;
+      // 可加一点间隔，避免连续刷新太快
+      await waitOrAction(500);
+    }
+  } while (loopMode && dict.running);
 
   if (dict.running) {
     dict.running = false;
@@ -667,6 +645,19 @@ function replayWord() {
 function showPhase(p) {
   dict.phase = p;
   $("reviewCard").classList.toggle("hidden", p !== "review");
+
+  // ★ 导航组（上一个/重播/下一个）：只在 playing 显示
+  const navGroup = $("dictNavGroup");
+  if (navGroup) navGroup.classList.toggle("hidden", p !== "playing");
+
+  // ★ 主控组（开始/停止 + 暂停容器）：review 时隐藏
+  const mainCtrl = $("dictMainCtrl");
+  if (mainCtrl) mainCtrl.classList.toggle("hidden", p === "review");
+
+  // ★ 暂停按钮：只在 playing 显示（"开始默写/停止"按钮保留）
+  const pauseBtn = $("pauseBtn");
+  if (pauseBtn) pauseBtn.classList.toggle("hidden", p !== "playing");
+
   const ctrl = $("dictCtrlBtn");
   if (p === "idle") {
     ctrl.textContent = "🚀 开始默写";
@@ -677,13 +668,13 @@ function showPhase(p) {
     ctrl.className = "danger";
     ctrl.disabled = false;
   } else {
-    ctrl.disabled = true; // review 阶段由“标记完成”按钮收尾
+    ctrl.disabled = true;
   }
-  $("pauseBtn").disabled = p !== "playing";
+
   $("nextBtn").disabled = p !== "playing";
   $("prevBtn").disabled = p !== "playing";
   $("replayBtn").disabled = p !== "playing";
-  $("pauseBtn").textContent = "⏸ 暂停";
+
   if (p === "idle") {
     $("currentWord").textContent = "准备默写";
     $("progressText").textContent = "进度: 0 / 0";
@@ -742,15 +733,17 @@ function completeDictation() {
   }
 
   if (unmarked.length > 0) {
-    confirmDialog(
-      "提示",
-      "还有 <b>" +
+    openConfirmModal({
+      title: "提示",
+      body:
+        "还有 <b>" +
         unmarked.length +
         "</b> 个单词未标记。<br>" +
         '系统将默认把这些单词视为<b style="color:var(--ok);">正确</b>。<br><br>' +
         "确定继续出分数吗？",
-      doCompleteDictation,
-    );
+      okTitle: "继续",
+      onOk: doCompleteDictation,
+    });
     return;
   }
 
@@ -860,4 +853,12 @@ function showResult(r) {
       '<button class="primary" onclick="closeModal()">关闭</button>' +
       "</div>",
   );
+}
+
+function hasItemsToDictate() {
+  const s = getDictationSettings();
+  const dl = normalizeDictLang(getDefaultDictLang());
+  dict.speakChinese = dictLangIsChinese(dl);
+  dict.mode = s.mode || 0;
+  return collectItems().length > 0;
 }

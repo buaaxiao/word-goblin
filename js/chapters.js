@@ -254,7 +254,7 @@ function renderChapterList() {
   // ===== 有可见章节 → 渲染行 =====
   filtered.forEach(({ ch, ci }) => {
     const d = document.createElement("div");
-    const viewMode = chapterMode === "view";
+    const viewMode = config.chapterMode === "view";
     d.className =
       "chapter-item" +
       (ci === currentChapter ? " active" : "") +
@@ -446,7 +446,7 @@ function toggleChapter(ci, checked) {
   renderWords();
 }
 
-function addChapter(name, dictLang) {
+function addChapter(name) {
   name = (name || "").trim();
   if (!name) {
     toast("请输入章节名称");
@@ -465,7 +465,6 @@ function addChapter(name, dictLang) {
     name: name,
     selected: false,
     words: [],
-    dictLang: typeof dictLang === "number" ? dictLang : getDefaultDictLang(),
   });
   currentChapter = data.chapters.length - 1;
   saveData();
@@ -483,18 +482,20 @@ function deleteChapter(ci) {
       ? "<br>该章节包含 <b>" + wordCount + "</b> 个单词，将一并删除。"
       : "";
 
-  confirmDialog(
-    "删除章节",
-    "确定删除章节 <b>" +
+  openConfirmModal({
+    title: "删除章节",
+    body:
+      "确定删除章节 <b>" +
       esc(ch.name) +
       "</b> 吗？" +
       wordInfo +
-      "<br>" +
-      "此操作不可撤销。",
-    function () {
+      "<br>此操作不可撤销。",
+    danger: true, // ★ √ 按钮变红
+    okTitle: "删除",
+    onOk: function () {
       doDeleteChapter(ci);
     },
-  );
+  });
 }
 
 function doDeleteChapter(ci) {

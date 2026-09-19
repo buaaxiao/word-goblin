@@ -1,35 +1,57 @@
 /* ===================================================================
  * js/core.js - 基础工具 / 主题 / 折叠 / 搜索
- * 自 index.html 内联脚本拆分而来；所有函数保持为全局 API（兼容内联 onclick）。
+ *
+ * 依赖：
+ *   - constants.js ：DICT_LANG / 各设置键
+ *   - config.js    ：config 对象 / setConfig / persistConfigKey
  * =================================================================== */
 "use strict";
 
-const THEME_KEY = "wordDictation.theme.v1";
-const DATA_DIR = "data";
-const DATA_FILE = "data.json";
-const DATA_URL = DATA_DIR + "/" + DATA_FILE;
+/* =================================================================
+ * 报词方式工具
+ * ================================================================= */
+function dictLangIsChinese(v) {
+  return Number(v) === DICT_LANG.ZH;
+}
 
+function normalizeDictLang(v) {
+  if (v === true) return DICT_LANG.ZH;
+  if (v === false) return DICT_LANG.EN;
+  const n = Number(v);
+  return n === DICT_LANG.ZH ? DICT_LANG.ZH : DICT_LANG.EN;
+}
+
+function dictLangLabel(v) {
+  return normalizeDictLang(v) === DICT_LANG.ZH ? "汉语" : "English";
+}
+
+/* =================================================================
+ * 数据源 URL
+ * ================================================================= */
 function getDataUrl() {
   return DATA_URL + "?_=" + Date.now();
 }
 
 let openWordDetails = new Set();
 
+/* =================================================================
+ * 主题（config.theme）
+ * ================================================================= */
 function loadTheme() {
-  try {
-    const saved = localStorage.getItem(THEME_KEY);
-    if (saved === "dark") {
-      document.body.classList.add("dark");
-      updateThemeUI("dark");
-    } else {
-      updateThemeUI("light");
-    }
-    syncThemeModeRadios(getCurrentThemeMode());
-  } catch (e) {}
+  const v = config.theme === "dark" ? "dark" : "light";
+  if (v === "dark") {
+    document.body.classList.add("dark");
+    updateThemeUI("dark");
+  } else {
+    updateThemeUI("light");
+  }
+  syncThemeModeRadios(v);
 }
+
 function getCurrentThemeMode() {
-  return document.body.classList.contains("dark") ? "dark" : "light";
+  return config.theme === "dark" ? "dark" : "light";
 }
+
 function updateThemeUI(theme) {
   const icon = document.getElementById("themeIcon");
   const text = document.getElementById("themeText");
@@ -41,87 +63,93 @@ function updateThemeUI(theme) {
     if (text) text.textContent = "浅色";
   }
 }
-// 设置弹窗：系统设置（主题颜色模式）
+
 function setThemeMode(mode) {
   const isDark = mode === "dark";
   document.body.classList.toggle("dark", isDark);
-  try {
-    localStorage.setItem(THEME_KEY, isDark ? "dark" : "light");
-  } catch (e) {}
+  setConfig(KEY_THEME, isDark ? "dark" : "light");
   updateThemeUI(isDark ? "dark" : "light");
   const meta = document.getElementById("themeColorMeta");
   if (meta) meta.setAttribute("content", isDark ? "#1f2937" : "#4a7cff");
   syncThemeModeRadios(isDark ? "dark" : "light");
 }
+
 function syncThemeModeRadios(mode) {
   document.querySelectorAll("input[name=themeMode]").forEach((r) => {
     r.checked = r.value === mode;
   });
 }
-// ★ 注意：openSettings / closeSettings 已迁移到 main.js，不再在此处定义
 
-// ===== 默认报词方式：以设置界面的“报词方式”设置为准 =====
-const LANGSEL_KEY = "wordDictation.langSel.v1";
+/* =================================================================
+ * 报词方式（config.dictLang）
+ * ================================================================= */
 function getDefaultDictLang() {
-  try {
-    const saved = localStorage.getItem(LANGSEL_KEY);
-    if (saved === "1") return 1;
-    if (saved === "0") return 0;
-  } catch (e) {}
-  const el = $("langSel");
-  return el && el.value === "1" ? 1 : 0;
+  return config.dictLang;
 }
+
 function saveLangSelSetting() {
-  const el = $("langSel");
-  try {
-    localStorage.setItem(LANGSEL_KEY, el && el.value === "1" ? "1" : "0");
-  } catch (e) {}
-}
-function loadLangSelSetting() {
-  try {
-    const saved = localStorage.getItem(LANGSEL_KEY);
+  // ★ 优先读新 radio
+  const radio = document.querySelector('input[name="dictLang"]:checked');
+  let v;
+  if (radio) {
+    v = Number(radio.value);
+  } else {
+    // 回退老 UI
     const el = $("langSel");
-    if (el && (saved === "1" || saved === "0")) el.value = saved;
-  } catch (e) {}
+    v = normalizeDictLang(el && el.value);
+  }
+  setConfig(KEY_DICT_LANG, v);
 }
 
-const COLLAPSE_KEY = "wordDictation.collapse.v4";
-let collapseState = { chapter: false, word: true };
+function loadLangSelSetting() {
+  const v = String(config.dictLang);
 
+  // 老 UI：单个 <select id="langSel">
+  const el = $("langSel");
+  if (el) el.value = v;
+
+  // ★ 新 UI：radio 组 name="dictLang"
+  document.querySelectorAll('input[name="dictLang"]').forEach((r) => {
+    r.checked = r.value === v;
+  });
+}
+
+/* =================================================================
+ * 折叠状态（config.chapterCollapsed / config.wordCollapsed）
+ * ================================================================= */
 function loadCollapseState() {
+  // config 已在 loadConfigFromStorage 里初始化，这里只做旧键一次性迁移
   try {
-    const raw = localStorage.getItem(COLLAPSE_KEY);
-    if (raw) collapseState = Object.assign(collapseState, JSON.parse(raw));
-  } catch (e) {}
-}
-function saveCollapseState() {
-  try {
-    localStorage.setItem(COLLAPSE_KEY, JSON.stringify(collapseState));
+    if (localStorage.getItem(KEY_COLLAPSE_MIGRATED) !== "1") {
+      const old = localStorage.getItem(KEY_COLLAPSE_OLD);
+      if (old) {
+        const obj = JSON.parse(old);
+        if (typeof obj.chapter === "boolean") {
+          setConfig(KEY_CHAPTER_COLLAPSED, obj.chapter);
+        }
+        if (typeof obj.word === "boolean") {
+          setConfig(KEY_WORD_COLLAPSED, obj.word);
+        }
+      }
+      localStorage.setItem(KEY_COLLAPSE_MIGRATED, "1");
+    }
   } catch (e) {}
 }
 
-/**
- * 应用折叠状态到 DOM。
- * @param {boolean} isFirstLoad 是否首次加载：
- *   - true  ：根据「当前单词表显示条数」自动决定是否折叠
- *             · 单词表 0 条 → 折叠单词区
- *             · 章节数为 0 → 折叠章节区
- *   - false ：仅按 collapseState 渲染，不自动改变折叠状态
- */
+function saveCollapseState() {
+  persistConfigKey(KEY_CHAPTER_COLLAPSED);
+  persistConfigKey(KEY_WORD_COLLAPSED);
+}
+
 function applyCollapseState(isFirstLoad = false) {
   if (isFirstLoad) {
-    // 只在初始化时判断一次：单词表 0 条 → 折叠
-    // 口径 = 当前 selected=true 章节的所有单词数
-    // （初始化时无搜索、无去重，与 renderWords 的实际显示口径一致）
     const visibleWordCount = getSelectedWordCount();
-
     if (visibleWordCount === 0) {
-      collapseState.word = true;
+      setConfig(KEY_WORD_COLLAPSED, true);
     }
     if (data.chapters.length === 0) {
-      collapseState.chapter = true;
+      setConfig(KEY_CHAPTER_COLLAPSED, true);
     }
-    if (typeof saveCollapseState === "function") saveCollapseState();
   }
 
   applyOneCollapse(
@@ -130,7 +158,7 @@ function applyCollapseState(isFirstLoad = false) {
     "chapterArrow",
     "📂",
     "📁",
-    collapseState.chapter,
+    config.chapterCollapsed,
   );
   applyOneCollapse(
     "wordHeader",
@@ -138,14 +166,10 @@ function applyCollapseState(isFirstLoad = false) {
     "wordArrow",
     "📖",
     "📕",
-    collapseState.word,
+    config.wordCollapsed,
   );
 }
 
-/**
- * 工具：当前所有 selected=true 的章节里的单词总数。
- * 与 renderWords() 内部"合并选中章节单词"的口径一致。
- */
 function getSelectedWordCount() {
   let n = 0;
   for (let i = 0; i < data.chapters.length; i++) {
@@ -177,77 +201,82 @@ function applyOneCollapse(
     if (arrow) arrow.textContent = iconOpen;
   }
 }
+
 function toggleSection(which) {
-  if (which === "chapter") collapseState.chapter = !collapseState.chapter;
-  else if (which === "word") collapseState.word = !collapseState.word;
-  saveCollapseState();
+  if (which === "chapter") {
+    setConfig(KEY_CHAPTER_COLLAPSED, !config.chapterCollapsed);
+  } else if (which === "word") {
+    setConfig(KEY_WORD_COLLAPSED, !config.wordCollapsed);
+  }
   applyCollapseState();
 }
 
-// ===== 列表显示模式：章节 / 单词各自独立的 编辑·查看 =====
-const LIST_MODE_KEY = "wordDictation.listMode.v1";
-let chapterMode = "edit";
-let wordMode = "edit";
+/* =================================================================
+ * 列表显示模式（config.chapterMode / config.wordMode）
+ * ================================================================= */
 function loadListMode() {
+  // config 已在 loadConfigFromStorage 里初始化，这里只做旧键一次性迁移
   try {
-    const raw = localStorage.getItem(LIST_MODE_KEY);
-    if (!raw) return;
-    let v;
-    try {
-      v = JSON.parse(raw);
-    } catch (e) {
-      v = raw;
-    }
-    if (typeof v === "string") {
-      // 兼容旧版本：全局值应用到两个列表
-      const m = v === "view" ? "view" : "edit";
-      chapterMode = m;
-      wordMode = m;
-    } else if (v && typeof v === "object") {
-      chapterMode = v.chapter === "view" ? "view" : "edit";
-      wordMode = v.word === "view" ? "view" : "edit";
+    if (localStorage.getItem(KEY_LIST_MODE_MIGRATED) !== "1") {
+      const old = localStorage.getItem(KEY_LIST_MODE_OLD);
+      if (old) {
+        let v;
+        try {
+          v = JSON.parse(old);
+        } catch (e) {
+          v = old;
+        }
+        if (typeof v === "string") {
+          const m = v === "view" ? "view" : "edit";
+          setConfig(KEY_CHAPTER_MODE, m);
+          setConfig(KEY_WORD_MODE, m);
+        } else if (v && typeof v === "object") {
+          setConfig(KEY_CHAPTER_MODE, v.chapter === "view" ? "view" : "edit");
+          setConfig(KEY_WORD_MODE, v.word === "view" ? "view" : "edit");
+        }
+      }
+      localStorage.setItem(KEY_LIST_MODE_MIGRATED, "1");
     }
   } catch (e) {}
 }
+
 function saveListMode() {
-  try {
-    localStorage.setItem(
-      LIST_MODE_KEY,
-      JSON.stringify({ chapter: chapterMode, word: wordMode }),
-    );
-  } catch (e) {}
+  persistConfigKey(KEY_CHAPTER_MODE);
+  persistConfigKey(KEY_WORD_MODE);
 }
+
 function applyModesUI() {
   const cb = $("modeBtnChapter"),
     wb = $("modeBtnWord");
-  if (cb) cb.textContent = chapterMode === "view" ? "✏️ 编辑" : "👁 查看";
-  if (wb) wb.textContent = wordMode === "view" ? "✏️ 编辑" : "👁 查看";
+  if (cb)
+    cb.textContent = config.chapterMode === "view" ? "✏️ 编辑" : "👁 查看";
+  if (wb) wb.textContent = config.wordMode === "view" ? "✏️ 编辑" : "👁 查看";
   const chBody = $("chapterBody");
-  if (chBody) chBody.classList.toggle("list-view", chapterMode === "view");
+  if (chBody)
+    chBody.classList.toggle("list-view", config.chapterMode === "view");
   const wBody = $("wordBody");
-  if (wBody) wBody.classList.toggle("list-view", wordMode === "view");
+  if (wBody) wBody.classList.toggle("list-view", config.wordMode === "view");
 }
-// 章节列表名旁切换按钮：仅切换章节列表模式（同时展开章节列表）
+
 function toggleChapterMode() {
-  chapterMode = chapterMode === "edit" ? "view" : "edit";
-  saveListMode();
+  setConfig(KEY_CHAPTER_MODE, config.chapterMode === "edit" ? "view" : "edit");
+  setConfig(KEY_CHAPTER_COLLAPSED, false);
   applyModesUI();
-  collapseState.chapter = false;
-  saveCollapseState();
   applyCollapseState();
   renderChapterList();
 }
-// 单词列表名旁切换按钮：仅切换单词列表模式（同时展开单词列表）
+
 function toggleWordMode() {
-  wordMode = wordMode === "edit" ? "view" : "edit";
-  saveListMode();
+  setConfig(KEY_WORD_MODE, config.wordMode === "edit" ? "view" : "edit");
+  setConfig(KEY_WORD_COLLAPSED, false);
   applyModesUI();
-  collapseState.word = false;
-  saveCollapseState();
   applyCollapseState();
   renderWords();
 }
 
+/* =================================================================
+ * 搜索
+ * ================================================================= */
 let chapterSearchQuery = "";
 let wordSearchQuery = "";
 
@@ -283,6 +312,10 @@ function clearWordSearch(e) {
   if (wrap) wrap.classList.remove("has-text");
   renderWords();
 }
+
+/* =================================================================
+ * 工具函数
+ * ================================================================= */
 function escapeRegex(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -336,10 +369,17 @@ function toast(msg) {
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 2200);
 }
-// ★ 注意：openModal / closeModal 已迁移到 main.js，不再在此处定义
 
-// ===== 居中告警（页面中部弹窗样式提示） =====
-function showAlert(msg) {
+/* =================================================================
+ * 居中告警
+ * ================================================================= */
+function showAlert(msg, opts) {
+  opts = opts || {};
+  const okTitle = opts.okTitle || "确定";
+  const cancelTitle = opts.cancelTitle || "关闭";
+  const onOk = opts.onOk;
+  const onCancel = opts.onCancel;
+
   let alertEl = $("alertOverlay");
   if (!alertEl) {
     alertEl = document.createElement("div");
@@ -347,18 +387,99 @@ function showAlert(msg) {
     alertEl.className = "modal";
     alertEl.innerHTML =
       '<div class="modal-box center-alert">' +
+      '<div class="modal-head">' +
+      '<div style="flex:1;"></div>' +
+      '<div style="display:flex;gap:6px;">' +
+      '<button type="button" class="modal-save" title="' +
+      okTitle +
+      '">√</button>' +
+      '<button type="button" class="modal-close" title="' +
+      cancelTitle +
+      '">✕</button>' +
+      "</div>" +
+      "</div>" +
       '<div class="alert-icon">⚠️</div>' +
       '<p id="alertMsg" class="alert-msg"></p>' +
-      '<div class="row"><button class="primary" onclick="closeAlert()">确定</button></div></div>';
+      "</div>";
+
     alertEl.addEventListener("click", function (e) {
       if (e.target === alertEl) closeAlert();
-    }); // 点击遮罩关闭
+    });
     document.body.appendChild(alertEl);
   }
+
+  const box = alertEl.querySelector(".modal-box");
+  const saveBtn = box.querySelector(".modal-save");
+  const closeBtn = box.querySelector(".modal-close");
+
+  saveBtn.onclick = function () {
+    closeAlert();
+    if (typeof onOk === "function") onOk();
+  };
+  closeBtn.onclick = function () {
+    closeAlert();
+    if (typeof onCancel === "function") onCancel();
+  };
+
   $("alertMsg").textContent = msg;
   alertEl.classList.remove("hidden");
 }
+
 function closeAlert() {
   const alertEl = $("alertOverlay");
   if (alertEl) alertEl.classList.add("hidden");
+}
+
+/* =================================================================
+ * 默写设置（config.dictation）
+ * ================================================================= */
+function getDictationSettings() {
+  return Object.assign({}, config.dictation);
+}
+
+function saveDictationSettings() {
+  // ★ 优先读新 radio，找不到再回退老 select
+  const modeRadio = document.querySelector('input[name="dictMode"]:checked');
+  const orderRadio = document.querySelector('input[name="playOrder"]:checked');
+  const modeEl = $("modeSel"); // 老 UI 兜底
+
+  const obj = {
+    intervalSec:
+      parseInt($("intervalSec") && $("intervalSec").value, 10) ||
+      DICTATION_SETTINGS_DEFAULT.intervalSec,
+    repeatCount:
+      parseInt($("repeatCount") && $("repeatCount").value, 10) ||
+      DICTATION_SETTINGS_DEFAULT.repeatCount,
+    repeatIntervalSec:
+      parseInt($("repeatIntervalSec") && $("repeatIntervalSec").value, 10) ||
+      DICTATION_SETTINGS_DEFAULT.repeatIntervalSec,
+    mode: modeRadio
+      ? parseInt(modeRadio.value, 10) || 0
+      : parseInt(modeEl && modeEl.value, 10) || DICTATION_SETTINGS_DEFAULT.mode,
+    playOrder: orderRadio
+      ? parseInt(orderRadio.value, 10) || 0
+      : DICTATION_SETTINGS_DEFAULT.playOrder,
+  };
+  setConfig(KEY_DICTATION, obj);
+}
+
+function loadDictationSettings() {
+  const s = config.dictation;
+  if ($("intervalSec")) $("intervalSec").value = s.intervalSec;
+  if ($("repeatCount")) $("repeatCount").value = s.repeatCount;
+  if ($("repeatIntervalSec"))
+    $("repeatIntervalSec").value = s.repeatIntervalSec;
+  if ($("modeSel")) $("modeSel").value = String(s.mode);
+
+  // 播报顺序
+  const orderVal = String(s.playOrder || 0);
+  document.querySelectorAll('input[name="playOrder"]').forEach((r) => {
+    r.checked = r.value === orderVal;
+  });
+
+  // ★ 补：默写范围
+  const modeVal = String(s.mode != null ? s.mode : 0);
+  document.querySelectorAll('input[name="dictMode"]').forEach((r) => {
+    r.checked = r.value === modeVal;
+  });
 }

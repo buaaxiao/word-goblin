@@ -54,7 +54,6 @@ function toggleCustomSelect(id) {
   } else {
     el.classList.add("open");
     panel.classList.remove("hidden");
-    _positionCustomSelectPanel(el);
   }
 }
 
@@ -104,29 +103,6 @@ function setCustomSelectValue(id, value) {
 
   const label = el.querySelector(".custom-select-label");
   if (label) label.textContent = labelText;
-}
-
-/**
- * 浮层定位：宽度对齐按钮；若浮层超出弹窗底部，自动滚动
- */
-function _positionCustomSelectPanel(el) {
-  const btn = el.querySelector(".custom-select-btn");
-  const panel = el.querySelector(".custom-select-panel");
-  if (!btn || !panel) return;
-
-  // 宽度对齐按钮
-  panel.style.width = btn.offsetWidth + "px";
-
-  // 浮层超出弹窗可视区时，滚动一下
-  setTimeout(() => {
-    const box = el.closest(".modal-box");
-    if (!box) return;
-    const boxRect = box.getBoundingClientRect();
-    const panelRect = panel.getBoundingClientRect();
-    if (panelRect.bottom > boxRect.bottom) {
-      box.scrollTop += panelRect.bottom - boxRect.bottom + 12;
-    }
-  }, 0);
 }
 
 /* ===== 全局关闭：点外部 / Esc ===== */

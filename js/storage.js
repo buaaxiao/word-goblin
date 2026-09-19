@@ -6,6 +6,7 @@
  *
  *   ★ 所有"本地-共享"匹配走 uid（id 字段），不再用 name
  *   ★ 兼容历史数据（无 uid）：用 name 认领，认领后立刻写回 IDB
+ *   ★ dictLang 统一用 DICT_LANG 枚举（0=EN, 1=ZH）
  * =================================================================== */
 
 const STORAGE_KEY_OLD = "wordDictation.data.v1";
@@ -32,7 +33,9 @@ async function migrateFromLocalStorage() {
             id: chapterId,
             name: ch.name,
             selected: !!ch.selected,
-            dictLang: typeof ch.dictLang === "number" ? ch.dictLang : 0,
+            dictLang: normalizeDictLang(
+              typeof ch.dictLang === "number" ? ch.dictLang : DICT_LANG.EN,
+            ),
             order: order++,
           });
           for (const w of ch.words || []) {
@@ -195,20 +198,20 @@ async function loadData() {
       merged.push({
         _id: cchId,
         name: localCh ? localCh.name : cch.name,
-        dictLang: localCh
-          ? typeof localCh.dictLang === "number"
-            ? localCh.dictLang
-            : 0
-          : typeof cch.dictLang === "number"
-            ? cch.dictLang
-            : 0,
+        dictLang: normalizeDictLang(
+          localCh
+            ? typeof localCh.dictLang === "number"
+              ? localCh.dictLang
+              : DICT_LANG.EN
+            : typeof cch.dictLang === "number"
+              ? cch.dictLang
+              : DICT_LANG.EN,
+        ),
         selected: localCh ? !!localCh.selected : false,
         words: mergedWords,
       });
 
       // 4.3 认领：把本地旧 uid 改成共享 uid（写回 IDB）
-      //     章节：删旧记录，插新记录
-      //     单词：删旧记录，插新记录（chapterId 改成新的 cchId）
       if (needClaim && localCh) {
         try {
           await dbDeleteChapter(localCh.id);
@@ -216,8 +219,11 @@ async function loadData() {
             id: cchId,
             name: localCh.name,
             selected: !!localCh.selected,
-            dictLang:
-              typeof localCh.dictLang === "number" ? localCh.dictLang : 0,
+            dictLang: normalizeDictLang(
+              typeof localCh.dictLang === "number"
+                ? localCh.dictLang
+                : DICT_LANG.EN,
+            ),
             order: localCh.order || 0,
           });
         } catch (e) {
@@ -254,7 +260,9 @@ async function loadData() {
       merged.push({
         _id: lc.id,
         name: lc.name,
-        dictLang: typeof lc.dictLang === "number" ? lc.dictLang : 0,
+        dictLang: normalizeDictLang(
+          typeof lc.dictLang === "number" ? lc.dictLang : DICT_LANG.EN,
+        ),
         selected: !!lc.selected,
         words: lw.map((w) => ({
           _id: w.id,
@@ -363,7 +371,9 @@ async function saveData() {
         id,
         name: ch.name,
         selected: !!ch.selected,
-        dictLang: typeof ch.dictLang === "number" ? ch.dictLang : 0,
+        dictLang: normalizeDictLang(
+          typeof ch.dictLang === "number" ? ch.dictLang : DICT_LANG.EN,
+        ),
         order: order++,
       };
 
@@ -527,12 +537,13 @@ function uniqConcat(a, b) {
 
 /* =================================================================
  * 六、浅比较工具
+ *   ★ dictLang 比较用 normalizeDictLang 规范化，避免 0 vs "0" 的坑
  * ================================================================= */
 function shallowEqualChapter(a, b) {
   return (
     a.name === b.name &&
     !!a.selected === !!b.selected &&
-    (a.dictLang || 0) === (b.dictLang || 0) &&
+    normalizeDictLang(a.dictLang) === normalizeDictLang(b.dictLang) &&
     (a.order || 0) === (b.order || 0)
   );
 }

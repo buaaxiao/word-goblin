@@ -1,24 +1,16 @@
 /* ===================================================================
  * js/main.js — 应用入口
+ *
+ * 说明：
+ *   - 设置 / 统计 / 默写三个弹窗的 HTML 和 open/close 分别在
+ *     partials/settings-modal.js、partials/stats-modal.js、
+ *     partials/dictation-modal.js 里
+ *   - 本文件只提供：#modal 的通用封装 + 底层 openModalEl / closeModalEl
+ *     + 全局事件 + 应用初始化
  * =================================================================== */
 
 // ===================================================================
-// 一、注入弹窗 HTML
-// ===================================================================
-function injectPartials() {
-  const map = {
-    settingsModal: window.__PARTIAL_settingsModal,
-    statsModal: window.__PARTIAL_statsModal,
-    dictModal: window.__PARTIAL_dictModal,
-  };
-  Object.keys(map).forEach((id) => {
-    const el = document.getElementById(id);
-    if (el && map[id]) el.innerHTML = map[id];
-  });
-}
-
-// ===================================================================
-// 二、通用弹窗：#modal 的内容填充 + 打开/关闭（唯一业务封装）
+// 一、通用弹窗：#modal 的内容填充 + 打开/关闭（唯一业务封装）
 // ===================================================================
 /**
  * 给 #modalBody 填充内容（不负责显示弹窗）
@@ -62,7 +54,7 @@ function closeModal() {
 }
 
 // ===================================================================
-// 三、底层：任意 .modal 元素的显示/隐藏
+// 二、底层：任意 .modal 元素的显示/隐藏
 //   - 焦点栈 + 锁滚动（position: fixed 版）+ 自动聚焦
 //   - 用 position: fixed 锁滚动，避免原生 <select> 展开浮层坐标错位
 // ===================================================================
@@ -135,7 +127,7 @@ function closeModalEl(el) {
 }
 
 // ===================================================================
-// 四、取得当前「最上层」打开的 modal
+// 三、取得当前「最上层」打开的 modal
 // ===================================================================
 function getTopModal() {
   const list = Array.from(document.querySelectorAll(".modal:not(.hidden)"));
@@ -154,64 +146,7 @@ function getTopModal() {
 }
 
 // ===================================================================
-// 五、设置弹窗
-// ===================================================================
-function openSettings() {
-  const m = document.getElementById("settingsModal");
-  if (!m) {
-    console.error("#settingsModal 不存在");
-    return;
-  }
-  if (!m.innerHTML.trim() && window.__PARTIAL_settingsModal) {
-    m.innerHTML = window.__PARTIAL_settingsModal;
-  }
-  // 同步主题单选按钮（原来在 core.js 的 openSettings 里）
-  if (typeof syncThemeModeRadios === "function") {
-    syncThemeModeRadios(getCurrentThemeMode());
-  }
-  openModalEl(m);
-}
-
-function closeSettings() {
-  closeModalEl(document.getElementById("settingsModal"));
-}
-
-// ===================================================================
-// 六、统计弹窗
-// ===================================================================
-function openStats() {
-  const m = document.getElementById("statsModal");
-  if (!m) {
-    console.error("#statsModal 不存在");
-    return;
-  }
-  if (!m.innerHTML.trim() && window.__PARTIAL_statsModal) {
-    m.innerHTML = window.__PARTIAL_statsModal;
-  }
-  openModalEl(m, function () {
-    if (typeof renderChart === "function") {
-      try {
-        renderChart();
-      } catch (e) {
-        console.error("renderChart 失败：", e);
-      }
-    }
-    if (typeof renderHistory === "function") {
-      try {
-        renderHistory();
-      } catch (e) {
-        console.error("renderHistory 失败：", e);
-      }
-    }
-  });
-}
-
-function closeStats() {
-  closeModalEl(document.getElementById("statsModal"));
-}
-
-// ===================================================================
-// 七、全局事件绑定
+// 四、全局事件绑定
 // ===================================================================
 function bindGlobalEvents() {
   // 遮罩点击关闭
@@ -292,7 +227,7 @@ function bindGlobalEvents() {
 }
 
 // ===================================================================
-// 八、安全调用
+// 五、安全调用
 // ===================================================================
 function safeCall(name) {
   const fn = window[name];
@@ -308,33 +243,41 @@ function safeCall(name) {
 }
 
 // ===================================================================
-// 九、应用初始化
+// 六、应用初始化
 // ===================================================================
 async function initApp() {
   try {
     // 1. 数据加载（异步）
     if (typeof loadData === "function") await loadData();
 
-    // 2. 小配置
+    // ★ 2. 设置：从持久化恢复到 config（必须在 loadTheme 等之前）
+    if (typeof loadConfigFromStorage === "function") {
+      await loadConfigFromStorage();
+    }
+    if (typeof migrateSettingsToIDB === "function") {
+      await migrateSettingsToIDB();
+    }
+
+    // 3. 小配置
+    if (typeof loadTheme === "function") loadTheme();
     if (typeof loadDedupe === "function") loadDedupe();
     if (typeof loadCollapseState === "function") loadCollapseState();
-    if (typeof loadLangSelSetting === "function") loadLangSelSetting();
+    if (typeof loadListMode === "function") loadListMode();
 
-    // ★ 首次加载：0 词则折叠单词区（只在这里判断一次）
+    // ★ 4. 首次加载：0 词则折叠章节；应用列表模式到 UI
     if (typeof applyCollapseState === "function") applyCollapseState(true);
+    if (typeof applyModesUI === "function") applyModesUI();
 
-    // 3. listVisibleSet
+    // 5. listVisibleSet
     if (typeof initListVisibleSet === "function") initListVisibleSet();
 
-    // 4. 渲染
+    // 6. 渲染
     if (typeof renderChapterList === "function") renderChapterList();
     if (typeof renderWords === "function") renderWords();
     if (typeof updateStats === "function") updateStats();
 
-    // 5. 事件
+    // 7. 事件
     if (typeof bindGlobalEvents === "function") bindGlobalEvents();
-
-    // 6. 打字机
     if (typeof initChapterSearchHint === "function") initChapterSearchHint();
 
     console.log("[单词精灵] 初始化完成");
@@ -343,20 +286,17 @@ async function initApp() {
   }
 }
 
+//
+
 // ===================================================================
-// 十、启动（唯一入口）
+// 七、启动（唯一入口）
 // ===================================================================
 (function boot() {
   document.body.classList.add("preload");
 
-  // 1. 注入弹窗 HTML（同步）
-  try {
-    injectPartials();
-  } catch (e) {
-    console.error("注入弹窗 HTML 失败：", e);
-  }
+  // 弹窗 HTML 改为惰性填充（partials 里各自填充），
+  // 不再需要启动时 injectPartials()
 
-  // 2. 初始化应用（异步）
   initApp()
     .catch((e) => {
       console.error("应用初始化失败：", e);
@@ -365,7 +305,6 @@ async function initApp() {
       }
     })
     .finally(() => {
-      // 3. 渲染完成后恢复过渡动画
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           document.body.classList.remove("preload");

@@ -11,72 +11,17 @@
  * =================================================================== */
 
 // ===================================================================
-// 一、通用确认对话框
-// ===================================================================
-function confirmDialog(title, messageHtml, onOk, onCancel) {
-  openModal(
-    title,
-    '<div style="color:var(--text-soft);font-size:14px;line-height:1.7;margin-bottom:6px;">' +
-      messageHtml +
-      "</div>" +
-      '<div class="row" style="justify-content:flex-end;">' +
-      '<button type="button" id="confirmDialogCancel">取消</button>' +
-      '<button type="button" class="primary" id="confirmDialogOk">确定</button>' +
-      "</div>",
-  );
-
-  const okBtn = document.getElementById("confirmDialogOk");
-  const cancelBtn = document.getElementById("confirmDialogCancel");
-
-  let finished = false;
-
-  function finish(action) {
-    if (finished) return;
-    finished = true;
-    document.removeEventListener("keydown", onKeyDown, true);
-    closeModal();
-
-    const cb = action === "ok" ? onOk : onCancel;
-    if (typeof cb === "function") {
-      try {
-        cb();
-      } catch (e) {
-        console.error("confirmDialog " + action + " 失败：", e);
-      }
-    }
-  }
-
-  if (okBtn)
-    okBtn.onclick = function () {
-      finish("ok");
-    };
-  if (cancelBtn)
-    cancelBtn.onclick = function () {
-      finish("cancel");
-    };
-
-  function onKeyDown(e) {
-    const tag = (e.target && e.target.tagName) || "";
-    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-
-    if (e.key === "Enter") {
-      e.preventDefault();
-      finish("ok");
-    }
-  }
-  document.addEventListener("keydown", onKeyDown, true);
-}
-
-// ===================================================================
 // 二、导出
 // ===================================================================
 function confirmExport() {
-  confirmDialog(
-    "导出数据",
-    "将当前全部章节与单词导出为 JSON 文件，可用于备份或迁移到其他设备。<br>" +
-      "导出后文件会保存到浏览器下载目录。",
-    exportData,
-  );
+  openConfirmModal({
+    title: "导出数据",
+    body: "确定导出当前数据吗？",
+    okTitle: "导出",
+    onOk: function () {
+      doExport();
+    },
+  });
 }
 
 function exportData() {
@@ -146,19 +91,21 @@ function importData() {
           return;
         }
 
-        confirmDialog(
-          "导入数据",
-          "检测到 <b>" +
+        openConfirmModal({
+          title: "导入数据",
+          body:
+            "检测到 <b>" +
             incoming.chapters.length +
             "</b> 个章节。<br>" +
             "将采用「合并」方式导入：<br>" +
             "· 本地独有的章节和单词会保留<br>" +
             "· 新章节会追加<br>" +
             "· 同名章节按单词去重合并",
-          function () {
+          okTitle: "导入",
+          onOk: function () {
             doImportMerge(incoming);
           },
-        );
+        });
       } catch (err) {
         console.error("解析失败：", err);
         toast("文件解析失败：" + (err && err.message ? err.message : err));
@@ -255,9 +202,10 @@ function normalizeWord(w) {
 // 四、数据同步
 // ===================================================================
 function syncFromCloud() {
-  confirmDialog(
-    "☁️ 云端同步",
-    '<div style="color:var(--text-soft);font-size:14px;line-height:1.7;">' +
+  openConfirmModal({
+    title: "☁️ 云端同步",
+    body:
+      '<div style="color:var(--text-soft);font-size:14px;line-height:1.7;">' +
       '将从 <b style="color:var(--primary);">云端</b> 同步词库：<br>' +
       "· 本地独有的章节和单词会保留<br>" +
       "· 云端独有的章节会追加<br>" +
@@ -266,11 +214,11 @@ function syncFromCloud() {
       '<div style="margin-top:10px;padding:8px 12px;background:var(--primary-light);' +
       'border-radius:8px;color:var(--primary);font-size:13px;font-weight:600;">' +
       "📡 此操作需要网络连接" +
-      "</div>" +
-      '<div style="margin-top:12px;text-align:center;color:var(--text-soft);font-size:14px;">' +
       "</div>",
-    doSyncFromCloud,
-  );
+    danger: true,
+    okTitle: "同步",
+    onOk: doSyncFromCloud,
+  });
 }
 
 async function doSyncFromCloud() {
@@ -314,12 +262,13 @@ async function mergeCloudIntoLocal(cloud) {
       id: chapterId,
       name: cch.name,
       selected: localCh ? !!localCh.selected : false,
-      dictLang:
+      dictLang: normalizeDictLang(
         typeof cch.dictLang === "number"
           ? cch.dictLang
           : localCh
             ? localCh.dictLang
-            : 0,
+            : DICT_LANG.EN,
+      ),
       order: localCh ? localCh.order : 0,
     });
 

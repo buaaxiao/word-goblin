@@ -1,7 +1,8 @@
 /* ===================================================================
  * js/chapters-modals.js - 章节相关弹窗
- *   - 统一新增弹窗：上段新增章节、下段新增单词
- *   - 修改章节（名称 + 报词方式，含云端报词方式加载）
+ *   - 统一新增弹窗：左侧图标 Tab 切换「新增章节 / 新增单词」
+ *   - 右上角 √ 按钮 = 保存当前 Tab
+ *   - 修改章节（仅名称）
  *
  * 依赖：
  *   - chapters.js : addChapter, renderChapterList
@@ -10,38 +11,47 @@
  *   - core.js     : $, toast, esc, custom-select 相关
  * =================================================================== */
 
-/* ===== 辅助：生成报词方式的 custom-select HTML ===== */
-function _dictLangSelectHtml(id, currentValue) {
-  const v = currentValue === 1 ? "1" : "0";
-  const labelText = v === "1" ? "汉语" : "English";
-  return (
-    '<div class="custom-select" id="' +
-    id +
-    '" data-value="' +
-    v +
-    '">' +
-    '<button type="button" class="custom-select-btn" onclick="toggleCustomSelect(\'' +
-    id +
-    "')\">" +
-    '<span class="custom-select-label">' +
-    labelText +
-    "</span>" +
-    '<span class="custom-select-arrow">▾</span>' +
-    "</button>" +
-    '<div class="custom-select-panel hidden">' +
-    '<div class="custom-select-option' +
-    (v === "1" ? " selected" : "") +
-    '" data-value="1" onclick="pickCustomSelect(\'' +
-    id +
-    "','1')\">汉语</div>" +
-    '<div class="custom-select-option' +
-    (v === "0" ? " selected" : "") +
-    '" data-value="0" onclick="pickCustomSelect(\'' +
-    id +
-    "','0')\">English</div>" +
-    "</div>" +
-    "</div>"
-  );
+/* ===== 当前激活的 Tab（"chapter" | "word"） ===== */
+let _addActiveTab = "chapter";
+
+/* ===== Tab 切换：左侧图标 Tab ===== */
+function switchAddTab(tab) {
+  const tabChapter = $("addTabChapter");
+  const tabWord = $("addTabWord");
+  const paneChapter = $("addPaneChapter");
+  const paneWord = $("addPaneWord");
+  if (!tabChapter || !tabWord || !paneChapter || !paneWord) return;
+
+  const isChapter = tab === "chapter";
+  _addActiveTab = isChapter ? "chapter" : "word";
+
+  tabChapter.classList.toggle("active", isChapter);
+  tabWord.classList.toggle("active", !isChapter);
+  paneChapter.classList.toggle("hidden", !isChapter);
+  paneWord.classList.toggle("hidden", isChapter);
+
+  // 同步弹窗标题
+  const titleEl = document.querySelector("#modalBody .modal-head h2");
+  if (titleEl) {
+    titleEl.textContent = isChapter ? "新增章节" : "新增单词";
+  }
+
+  if (isChapter) {
+    const t = $("addChapterName");
+    if (t) t.focus();
+  } else {
+    const t = $("addWordText");
+    if (t) t.focus();
+  }
+}
+
+/* ===== 右上角 √：保存当前 Tab ===== */
+function onAddModalSave() {
+  if (_addActiveTab === "chapter") {
+    addChapterFromModal();
+  } else {
+    addWordFromModal();
+  }
 }
 
 /* ===== 辅助：生成"所属章节"的 custom-select HTML ===== */
@@ -93,48 +103,69 @@ function _chapterSelectHtml(id, currentIndex) {
   );
 }
 
-// ===== 统一新增弹窗：上段新增章节、下段新增单词 =====
+// ===== 统一新增弹窗：顶部文字 Tab 切换 =====
 function openAddModal() {
+  _addActiveTab = "chapter"; // 默认章节
+
   const currentIdx =
     typeof currentChapter === "number" && currentChapter >= 0
       ? currentChapter
       : 0;
-  openModal(
-    "新增",
-    '<div class="add-block">' +
-      '<div class="add-title">📂 新增章节</div>' +
-      // 输入框独占一行
-      '<input id="addChapterName" class="input" placeholder="输入章节名称">' +
-      "<label>报词方式</label>" +
-      _dictLangSelectHtml("addChapterLang", getDefaultDictLang()) +
-      // ★ 添加按钮移到报词方式下方，全宽
-      '<button class="primary" style="width:100%;margin-top:8px" onclick="addChapterFromModal()">保存</button>' +
-      "</div>" +
-      '<div class="add-divider"></div>' +
-      '<div class="add-block">' +
-      '<div class="add-title">📝 新增单词</div>' +
-      "<label>所属章节</label>" +
-      _chapterSelectHtml("addWordChapter", currentIdx) +
-      "<label>单词</label>" +
-      '<input id="addWordText" class="input" placeholder="单词">' +
-      "<label>释义</label>" +
-      '<input id="addWordMeaning" class="input" placeholder="释义">' +
-      '<button class="primary" style="width:100%;margin-top:8px" onclick="addWordFromModal()">保存</button>' +
-      "</div>",
-  );
+
+  // ★ 顶部 Tab 头（和设置弹窗一致的风格），右侧放 √ + ✕
+  //   注意：openModal() 会自动生成 .modal-head，
+  //   我们在 openModal 之后覆盖它，见下方。
+  const bodyHtml =
+    '<div class="add-layout">' +
+    // 内容区
+    '<div class="add-main">' +
+    // 章节 pane
+    '<div class="add-pane" id="addPaneChapter">' +
+    "<label>章节名称</label>" +
+    '<input id="addChapterName" class="input" placeholder="输入章节名称">' +
+    "</div>" +
+    // 单词 pane
+    '<div class="add-pane hidden" id="addPaneWord">' +
+    "<label>所属章节</label>" +
+    _chapterSelectHtml("addWordChapter", currentIdx) +
+    "<label>单词</label>" +
+    '<input id="addWordText" class="input" placeholder="单词">' +
+    "<label>释义</label>" +
+    '<input id="addWordMeaning" class="input" placeholder="释义">' +
+    "</div>" +
+    "</div>" +
+    "</div>";
+
+  openModal("新增章节", bodyHtml);
+
+  // 覆盖 #modalBody 里的 .modal-head，把关闭按钮换成"√ + ✕"
+  const body = document.getElementById("modalBody");
+  if (body) {
+    const oldHead = body.querySelector(".modal-head");
+    if (oldHead) {
+      oldHead.innerHTML =
+        '<div class="settings-tabs add-head-tabs" style="flex:1;">' +
+        '<button type="button" class="settings-tab active" id="addTabChapter" onclick="switchAddTab(\'chapter\')">📂 新增章节</button>' +
+        '<button type="button" class="settings-tab" id="addTabWord" onclick="switchAddTab(\'word\')">📝 新增单词</button>' +
+        "</div>" +
+        '<div style="display:flex;gap:6px;margin-left:auto;padding-left:16px;flex-shrink:0;">' +
+        '<button type="button" class="modal-save" onclick="onAddModalSave()" title="保存">√</button>' +
+        '<button type="button" class="modal-close" onclick="closeModal()" title="关闭">✕</button>' +
+        "</div>";
+    }
+  }
+
   const t = $("addChapterName");
   if (t) t.focus();
 }
 
 function refreshAddWordSelect() {
-  // 新增章节后，所属章节下拉可能需要更新
   const el = $("addWordChapter");
   if (!el) return;
   const currentIdx =
     typeof currentChapter === "number" && currentChapter >= 0
       ? currentChapter
       : 0;
-  const wrap = el.closest(".custom-select") || el;
   const optionsHtml = data.chapters
     .map((c, i) => {
       const sel = String(i) === String(currentIdx);
@@ -156,95 +187,116 @@ function refreshAddWordSelect() {
   setCustomSelectValue("addWordChapter", String(currentIdx));
 }
 
+/* ===== 保存：新增章节 ===== */
 function addChapterFromModal() {
   const inp = $("addChapterName");
-  const langVal = getCustomSelectValue("addChapterLang", "0");
-  addChapter(inp ? inp.value : "", langVal === "1" ? 1 : 0);
-  if (inp && inp.value.trim()) inp.value = "";
-  refreshAddWordSelect();
-  if (inp) inp.focus();
+  const name = inp ? inp.value.trim() : "";
+
+  if (!name) {
+    toast("请输入章节名称");
+    if (inp) inp.focus();
+    return;
+  }
+  if (name.length > 30) {
+    toast("章节名称不能超过 30 个字符");
+    if (inp) inp.focus();
+    return;
+  }
+  if (data.chapters.some((c) => c.name === name)) {
+    toast("章节「" + name + "」已存在");
+    if (inp) inp.focus();
+    return;
+  }
+
+  try {
+    addChapter(name); // ★ 不再传 dictLang
+    if (inp) inp.value = "";
+    refreshAddWordSelect();
+    if (inp) inp.focus();
+    toast("✅ 已添加章节：" + name);
+  } catch (e) {
+    console.error("新增章节失败：", e);
+    toast("❌ 添加失败：" + (e && e.message ? e.message : e));
+  }
 }
 
+/* ===== 保存：新增单词 ===== */
 function addWordFromModal() {
-  const text = $("addWordText") ? $("addWordText").value : "";
-  const meaning = $("addWordMeaning") ? $("addWordMeaning").value : "";
+  const t = $("addWordText");
+  const m = $("addWordMeaning");
+  const text = t ? t.value.trim() : "";
+  const meaning = m ? m.value.trim() : "";
+
+  if (!text) {
+    toast("请输入单词");
+    if (t) t.focus();
+    return;
+  }
+  if (text.length > 50) {
+    toast("单词/词语不能超过 50 个字符");
+    if (t) t.focus();
+    return;
+  }
+
   const ciStr = getCustomSelectValue("addWordChapter", "0");
   const ci = parseInt(ciStr, 10);
-  addWord(text, meaning, Number.isNaN(ci) ? NaN : ci);
-  const t = $("addWordText"),
-    m = $("addWordMeaning");
-  if (t) t.value = "";
-  if (m) m.value = "";
-  if (t) t.focus();
-}
+  if (Number.isNaN(ci) || ci < 0 || ci >= data.chapters.length) {
+    toast("请选择所属章节");
+    return;
+  }
+  if (data.chapters[ci].words.some((w) => w.text === text)) {
+    toast("单词「" + text + "」已存在");
+    if (t) t.focus();
+    return;
+  }
 
-// ===== 云端报词方式缓存 =====
-let cloudDictLang = null;
-function loadCloudDictLang() {
-  if (cloudDictLang !== null) return Promise.resolve(cloudDictLang);
-  return fetch(getDataUrl())
-    .then((r) => {
-      if (!r.ok) throw new Error("fetch");
-      return r.json();
-    })
-    .then((obj) => {
-      const m = new Map();
-      (obj.chapters || []).forEach((ch) => {
-        if (ch.id && typeof ch.dictLang === "number") m.set(ch.id, ch.dictLang);
-      });
-      cloudDictLang = m;
-      return m;
-    })
-    .catch(() => {
-      cloudDictLang = new Map();
-      return cloudDictLang;
-    });
+  try {
+    addWord(text, meaning, ci);
+    if (t) t.value = "";
+    if (m) m.value = "";
+    if (t) t.focus();
+    toast("✅ 已添加单词：" + text);
+  } catch (e) {
+    console.error("新增单词失败：", e);
+    toast("❌ 添加失败：" + (e && e.message ? e.message : e));
+  }
 }
 
 // ===== 修改章节 =====
 function renameChapter(ci) {
   const ch = data.chapters[ci];
   if (!ch) return;
-  const localDl =
-    typeof ch.dictLang === "number" ? ch.dictLang : getDefaultDictLang();
 
-  loadCloudDictLang().then((m) => {
-    const dl = ch._id && m.has(ch._id) ? m.get(ch._id) : localDl;
-    openModal(
-      "修改章节",
+  openFormModal({
+    title: "修改章节",
+    body:
       "<label>章节名称</label>" +
-        '<input id="mInput" class="input" value="' +
-        esc(ch.name) +
-        '" placeholder="章节名称">' +
-        "<label>报词方式</label>" +
-        _dictLangSelectHtml("mLang", dl) +
-        '<div class="row"><button onclick="closeModal()">取消</button>' +
-        '<button class="primary" onclick="doRenameChapter(' +
-        ci +
-        ')">确定</button></div>',
-    );
+      '<input id="mInput" class="input" value="' +
+      esc(ch.name) +
+      '" placeholder="章节名称">',
+    saveTitle: "保存",
+    cancelTitle: "取消",
+    onSave: function () {
+      return doRenameChapter(ci);
+    },
   });
 }
 
 function doRenameChapter(ci) {
   const ch = data.chapters[ci];
-  if (!ch) return;
+  if (!ch) return false;
 
   const oldName = ch.name;
   const newName = $("mInput").value.trim();
   if (!newName) {
     toast("名称不能为空");
-    return;
+    return false;
   }
   const dup = data.chapters.findIndex((c, i) => c.name === newName && i !== ci);
   if (dup >= 0) {
     toast("已存在同名章节");
-    return;
+    return false;
   }
-
-  // ★ 从 custom-select 读值
-  const langVal = getCustomSelectValue("mLang", "0");
-  ch.dictLang = langVal === "1" ? 1 : 0;
 
   if (listVisibleSet.has(oldName)) {
     listVisibleSet.delete(oldName);
@@ -252,8 +304,15 @@ function doRenameChapter(ci) {
   }
   ch.name = newName;
 
-  saveData();
-  renderChapterList();
-  renderWords();
-  closeModal();
+  try {
+    saveData();
+    renderChapterList();
+    renderWords();
+    toast("✅ 已修改章节：" + newName);
+    return true;
+  } catch (e) {
+    console.error("修改章节失败：", e);
+    toast("❌ 修改失败：" + (e && e.message ? e.message : e));
+    return false;
+  }
 }

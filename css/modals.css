@@ -451,8 +451,8 @@ body.modal-open {
   justify-content: center;
 }
 
-.settings-box {
-  max-width: 440px;
+.center-alert .modal-head {
+  margin-bottom: 12px;
 }
 
 .dict-box {
@@ -461,17 +461,6 @@ body.modal-open {
 
 .dict-box .row {
   justify-content: center;
-}
-
-.settings-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-
-.settings-head h2 {
-  margin: 0;
 }
 
 .modal-head {
@@ -500,6 +489,8 @@ body.modal-open {
 
 .set-group:first-of-type {
   border-top: none;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .set-group h3 {
@@ -518,11 +509,6 @@ body.modal-open {
   height: 14px;
   background: linear-gradient(180deg, var(--primary), var(--primary-dark));
   border-radius: 2px;
-}
-
-.settings-box .row label {
-  display: inline;
-  margin: 0;
 }
 
 .mode-options {
@@ -573,7 +559,7 @@ body.modal-open {
   border-radius: 24px;
   font-size: 14.5px;
   font-weight: 500;
-  z-index: 200;
+  z-index: 500; /* ★ 从 200 改成 500 */
   max-width: 86%;
   text-align: center;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
@@ -765,4 +751,215 @@ body.dark .modal-box select {
   background-color: #1f2a3c;
   border-color: var(--border-strong);
   color: var(--text);
+}
+
+/* =================================================================
+ * 新增弹窗：顶部 Tab + 下方内容
+ * ================================================================= */
+.add-layout {
+  display: flex;
+  flex-direction: column; /* ★ 关键：Tab 一行在上，内容在下 */
+  gap: 12px;
+  align-items: stretch; /* column 下 stretch 让内容占满宽度 */
+  margin-top: 4px;
+}
+
+/* 右侧内容区 */
+.add-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.add-pane {
+  display: block;
+}
+
+.add-pane.hidden {
+  display: none;
+}
+
+/* =================================================================
+ * 弹窗右上角 √ 保存按钮
+ * ================================================================= */
+.modal-save {
+  padding: 4px 10px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 50%;
+  border: none;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 30px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-save:hover {
+  background: var(--primary-dark);
+  transform: scale(1.05);
+}
+
+.modal-save:active {
+  transform: scale(0.95);
+}
+
+body.dark .modal-save {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* ===== √ 按钮的"危险"变体（用于删除类） ===== */
+.modal-save.modal-save-danger {
+  background: var(--danger, #f05252);
+}
+
+.modal-save.modal-save-danger:hover {
+  background: #d94141;
+}
+
+#alertOverlay {
+  z-index: 400; /* 应高于 #modal 的 300 */
+}
+
+/* =================================================================
+ * 设置弹窗：头部（Tab + ✕ 同一行）
+ * ================================================================= */
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+/* 设置弹窗：Tab 切换 */
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  padding: 4px;
+  background: transparent;
+  border-radius: var(--radius-md);
+  border: none;
+  box-shadow: none;
+  height: 44px;
+  box-sizing: border-box;
+}
+
+.settings-tab {
+  flex: 1;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  user-select: none;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.settings-tab:hover {
+  color: var(--primary);
+}
+
+.settings-tab.active {
+  background: var(--card);
+  color: var(--primary);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.settings-pane {
+  display: block;
+  overflow-y: auto;
+  box-sizing: border-box;
+  max-height: 600px;
+}
+
+.settings-pane.hidden {
+  display: none;
+}
+
+/* ✕ 按钮：正方形 36×36 */
+.settings-head .modal-close {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  border: none;
+  background: var(--card-soft);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.settings-head .modal-close:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+/* 深色模式 */
+body.dark .settings-tabs {
+  background: #1b2635;
+  border-color: transparent;
+  border: none;
+}
+
+body.dark .settings-tab.active {
+  background: #263449;
+  color: var(--primary);
+}
+
+body.dark .settings-head .modal-close {
+  background: #1b2635;
+  color: var(--muted);
+}
+
+body.dark .settings-head .modal-close:hover {
+  background: #263449;
+  color: var(--text);
+}
+
+.settings-box .row label {
+  display: inline;
+  margin: 0;
+}
+
+.settings-box .row label {
+  display: inline;
+  margin: 0;
+}
+
+/* =================================================================
+ * 默写：review 阶段隐藏播放控制组
+ * ================================================================= */
+#dictNavGroup.hidden,
+#dictMainCtrl.hidden,
+#pauseBtn.hidden {
+  display: none !important;
+}
+
+.review-actions {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0;
 }
