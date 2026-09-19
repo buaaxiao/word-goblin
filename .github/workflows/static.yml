@@ -10,6 +10,7 @@ on:
       - 'index.html'
       - 'js/**'
       - 'css/**'
+      - 'partials/**'
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
