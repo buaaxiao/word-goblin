@@ -1,11 +1,8 @@
 /* ===================================================================
  * js/words.js - 单词列表 / 排序 / 增删改
- * 自 index.html 内联脚本拆分而来；所有函数保持为全局 API（兼容内联 onclick）。
  *
- * 单词行结构：单层 grid（8 槽），与 .word-table-header 共享同一套列模板
- *   编辑模式：手柄 | 单词 | 对 | 最后对 | 错 | 最后错 | 均分 | 操作
- *   查看模式：单词 | 对 | 最后对 | 错 | 最后错 | 均分              (6 槽)
- *   多章节：  单词 | 对 | 最后对 | 错 | 最后错 | 均分 | 操作       (7 槽)
+ * 单词行结构：单层 grid（9 槽）
+ *   手柄 | 单词 | 对 | 最后对 | 错 | 最后错 | 均分 | 编辑 | 删除
  * =================================================================== */
 let wordDragSrcIndex = null;
 let wordDragOverIndex = null;
@@ -13,12 +10,14 @@ let wordDragOverIndex = null;
 // ===== 单词去重 =====
 const DEDUPE_KEY = "wordDictation.dedupe.v1";
 let dedupeWords = false;
+
 function loadDedupe() {
   try {
     dedupeWords = localStorage.getItem(DEDUPE_KEY) === "1";
   } catch (e) {}
   applyDedupeUI();
 }
+
 function applyDedupeUI() {
   const b = $("dedupeBtn");
   if (!b) return;
@@ -36,7 +35,6 @@ function toggleDedupe() {
   openWordDetails.clear();
   applyDedupeUI();
 
-  // 只影响去重状态和折叠状态，不动 wordMode
   collapseState.word = false;
   if (typeof saveCollapseState === "function") saveCollapseState();
   if (typeof applyCollapseState === "function") applyCollapseState();
@@ -44,7 +42,7 @@ function toggleDedupe() {
   renderWords();
 }
 
-// 合并「所有选中章节」的单词，按章节顺序拼接；去重开启时相同 text 只保留第一个
+// 合并「所有选中章节」的单词
 function getMergedItems() {
   const items = [];
   for (let ci = 0; ci < data.chapters.length; ci++) {
@@ -69,11 +67,19 @@ function getMergedItems() {
   return shown;
 }
 
-// ===== 单词行 HTML：单层 grid（8 槽或 6 槽） =====
-// 槽位（编辑/多章节）：手柄 | 单词 | 对 | 最后对 | 错 | 最后错 | 均分 | 操作
-// 槽位（查看模式）： 手柄-失效 | 单词 | 对 | 最后对 | 错 | 最后错 | 均分 | 操作-失效
+/* =================================================================
+ * 单词行 HTML：单层 grid（9 槽）
+ *   手柄 | 单词 | 对 | 最后对 | 错 | 最后错 | 均分 | 编辑 | 删除
+ * ================================================================= */
 function buildWordRowHtml(w, key, opts) {
-  const { viewMode, handleDisabled, actionsDisabled, wordSearchQuery } = opts;
+  const {
+    viewMode,
+    handleDisabled,
+    multi,
+    dedupeWords: dedupe,
+    wordCount,
+    wordSearchQuery,
+  } = opts;
   const wordTip = w.meaning ? w.text + "（" + w.meaning + "）" : w.text;
 
   // 单词列
@@ -123,25 +129,48 @@ function buildWordRowHtml(w, key, opts) {
     avg(w) +
     "</span>";
 
-  const disabled = viewMode || handleDisabled;
-  // 手柄：viewMode 或 handleDisabled 时灰显
-  const handleHtml = disabled
-    ? '<span class="drag-handle disabled" title="当前状态下不可拖拽">≡</span>'
-    : '<span class="drag-handle" title="拖动排序">≡</span>';
+  // ★ 计算禁用原因（优先级：查看 > 多章节 > 去重 > 单词数不足）
+  let disabledReason = "";
+  if (viewMode) disabledReason = "查看模式";
+  else if (multi) disabledReason = "多章节合集";
+  else if (dedupe) disabledReason = "去重模式";
+  else if (wordCount <= 1) disabledReason = "单词数不足";
 
-  const editBtnHtml = disabled
-    ? '<button class="icon-btn disabled" disabled title="当前状态下不可操作">✎</button>'
+  const actionsDisabled = !!disabledReason;
+
+  // ★ 手柄：viewMode 或 handleDisabled 时灰显
+  const handleHtml =
+    viewMode || handleDisabled
+      ? '<span class="drag-handle disabled" title="' +
+        (disabledReason || "当前状态") +
+        '下不可拖拽" ' +
+        "onclick=\"showDisabledTip(event, '拖拽', '" +
+        (disabledReason || "当前状态") +
+        "')\">≡</span>"
+      : '<span class="drag-handle" title="拖动排序">≡</span>';
+
+  const editBtnHtml = actionsDisabled
+    ? '<button class="icon-btn disabled" title="' +
+      disabledReason +
+      '下不可编辑" ' +
+      "onclick=\"showDisabledTip(event, '编辑', '" +
+      disabledReason +
+      "')\">✎</button>"
     : '<button class="icon-btn" onclick="editWord(' +
       key +
       ')" title="编辑">✎</button>';
 
-  const delBtnHtml = disabled
-    ? '<button class="icon-btn disabled" disabled title="当前状态下不可操作">🗑</button>'
+  const delBtnHtml = actionsDisabled
+    ? '<button class="icon-btn disabled" title="' +
+      disabledReason +
+      '下不可删除" ' +
+      "onclick=\"showDisabledTip(event, '删除', '" +
+      disabledReason +
+      "')\">🗑</button>"
     : '<button class="icon-btn" onclick="deleteWord(' +
       key +
       ')" title="删除">🗑</button>';
 
-  // 槽位顺序：手柄 | 单词 | 对 | 最后对 | 错 | 最后错 | 均分 | 编辑 | 删除
   return handleHtml + wordHtml + statsHtml + editBtnHtml + delBtnHtml;
 }
 
@@ -153,7 +182,7 @@ function renderWords() {
     dedupeWords,
   );
 
-  // ★ 最优先：同步折叠状态，避免列表内容闪现
+  // 折叠状态
   const wBody = $("wordBody");
   if (wBody) {
     wBody.classList.toggle("collapsed", collapseState.word && !wordSearchQuery);
@@ -184,15 +213,17 @@ function renderWords() {
   const items = getMergedItems();
   const rawCount = items._raw;
 
-  // 只有「单章节 + 非去重 + 单词数 > 1」时可拖动 / 可操作
+  // 是否允许拖拽/操作：单章节 + 非去重 + 单词数 > 1
   const canDrag = !multi && !dedupeWords && items.length > 1;
   const handleDisabled = !canDrag;
-  const actionsDisabled = !canDrag;
 
+  // ★ 标题：单行显示，超出省略；悬停显示完整文字
   if (titleEl) {
-    titleEl.textContent = multi
+    const fullTitle = multi
       ? "选中" + selectedIdx.length + "章"
       : "「" + data.chapters[currentChapter].name + "」的单词";
+    titleEl.textContent = fullTitle;
+    titleEl.title = fullTitle;
   }
 
   let filtered = items.map((it, i) => ({ it, i }));
@@ -211,20 +242,6 @@ function renderWords() {
       badge.textContent = "去重 " + items.length + " / " + rawCount + " 词";
     else badge.textContent = items.length + " 词";
   }
-
-  // // 折叠预览（编辑模式、未搜索）
-  // if (wordMode !== 'view' && collapseState.word && !wordSearchQuery && items.length > 0) {
-  //   const preview = document.createElement('div');
-  //   preview.className = 'word-preview';
-  //   const maxShow = 20;
-  //   preview.innerHTML = items.slice(0, maxShow).map(it =>
-  //     '<span class="wp-item">' + esc(it.w.text) + '</span>'
-  //   ).join('') +
-  //   (items.length > maxShow ? '<span class="wp-more">…还有 ' + (items.length - maxShow) + ' 个</span>' : '');
-  //   el.appendChild(preview);
-  //   updateStats();
-  //   return;
-  // }
 
   if (!items.length) {
     el.innerHTML =
@@ -283,16 +300,13 @@ function renderWords() {
       '%"></div></div>' +
       "</div>";
 
-    // 只有在「单章节 + 非去重 + 单词数 > 1」时才允许编辑/删除
-    const canDrag = !multi && !dedupeWords && items.length > 1;
-    const handleDisabled = !canDrag; // 手柄失效
-    const actionsDisabled = !canDrag; // 操作列失效
-
     d.innerHTML =
       buildWordRowHtml(w, key, {
         viewMode,
         handleDisabled,
-        actionsDisabled,
+        multi,
+        dedupeWords,
+        wordCount: items.length,
         wordSearchQuery,
       }) + detailHtml;
 
@@ -436,7 +450,6 @@ function deleteWord(i) {
   );
 }
 
-// 实际删除
 function doDeleteWord(i) {
   const it = getMergedItems()[i];
   if (!it) return;
@@ -467,6 +480,7 @@ function editWord(i) {
       ')">确定</button></div>',
   );
 }
+
 function doEditWord(i) {
   const text = $("mText").value.trim();
   if (!text) {

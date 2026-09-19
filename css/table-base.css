@@ -4,11 +4,13 @@
  *   - 拖拽手柄
  *   - 失效态（手柄 / 图标按钮灰显）
  *   - 表头复选框禁用态
+ *
+ * 注意：失效态不设 pointer-events: none
+ *   否则 hover 与 click 都失效，无法显示 title 和触发 toast
  * =================================================================== */
 
 /* =================================================================
  * 拖拽行通用样式
- *   章节行 / 单词行共用的拖拽、悬停、拖拽指示
  * ================================================================= */
 .chapter-item,
 .word-item {
@@ -94,31 +96,25 @@
 
 /* =================================================================
  * 失效态：手柄 / 图标按钮灰显
+ *   ★ 不设 pointer-events: none —— 让 hover / click 仍然生效
  * ================================================================= */
-.drag-handle.disabled,
-.drag-handle:disabled {
+.drag-handle.disabled {
   opacity: 0.35;
   cursor: not-allowed;
-  pointer-events: none;
 }
 
 .drag-handle.disabled:hover,
-.drag-handle:disabled:hover,
-.drag-handle.disabled:active,
-.drag-handle:disabled:active {
+.drag-handle.disabled:active {
   color: #c3cddb;
   background: transparent;
 }
 
-.icon-btn.disabled,
-.icon-btn:disabled {
+.icon-btn.disabled {
   opacity: 0.35;
   cursor: not-allowed;
-  pointer-events: none;
 }
 
-.icon-btn.disabled:hover,
-.icon-btn:disabled:hover {
+.icon-btn.disabled:hover {
   background: transparent;
   color: var(--muted);
   transform: none;

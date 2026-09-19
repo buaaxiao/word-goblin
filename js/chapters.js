@@ -1,6 +1,6 @@
 /* ===================================================================
  * js/chapters.js - 章节列表核心
- *   - listVisibleSet 与相关工具
+ *   - listVisibleSet / tempVisibleChapters 与相关工具
  *   - 章节列表渲染 / 选择 / 切换 / 增删
  *   - 拖拽排序
  *   - 表头复选框（全选/半选/未选、禁用态）
@@ -11,33 +11,42 @@
 
 /* =================================================================
  * 列表显示集合：决定章节列表显示哪些章节
- *   - 存章节名称（不是索引）：data.chapters 增删改排序后名称稳定
- *   - 由「下拉面板」的勾选/取消、全选/全取消更新
- *   - 章节列表自身的表头复选框、行内复选框不改变它
- * ================================================================= */
+ *   - listVisibleSet：存章节名称（来自下拉面板的勾选）
+ *   - tempVisibleChapters：存章节索引（在列表内取消勾选的临时保留）
+ *   - 两个集合任一命中即显示
+ * =================================================================== */
 let listVisibleSet = new Set(); // Set<chapterName>
+let tempVisibleChapters = new Set(); // Set<chapterIndex>
 
 // 数据加载 / 导入 / 同步后重建：把当前 selected 的章节名加入集合
 function initListVisibleSet() {
   listVisibleSet.clear();
+  tempVisibleChapters.clear();
   data.chapters.forEach((ch) => {
     if (ch.selected) listVisibleSet.add(ch.name);
   });
 }
 
-// 防御性清洗：移除 data.chapters 里已不存在的名称
+// 防御性清洗
 function pruneListVisibleSet() {
   const existing = new Set(data.chapters.map((ch) => ch.name));
-  const next = new Set();
+  const nextNames = new Set();
   listVisibleSet.forEach((name) => {
-    if (existing.has(name)) next.add(name);
+    if (existing.has(name)) nextNames.add(name);
   });
-  listVisibleSet = next;
+  listVisibleSet = nextNames;
+
+  const maxIdx = data.chapters.length;
+  const nextIdx = new Set();
+  tempVisibleChapters.forEach((i) => {
+    if (i >= 0 && i < maxIdx) nextIdx.add(i);
+  });
+  tempVisibleChapters = nextIdx;
 }
 
 // 判断某个章节是否在列表里可见
-function isChapterVisible(ch) {
-  return listVisibleSet.has(ch.name);
+function isChapterVisible(ch, ci) {
+  return listVisibleSet.has(ch.name) || tempVisibleChapters.has(ci);
 }
 
 // 与 renderChapterList 一致的「列表可见章节」
@@ -45,18 +54,15 @@ function getVisibleChapters() {
   const q = (chapterSearchQuery || "").toLowerCase();
   return data.chapters
     .map((ch, ci) => ({ ch, ci }))
-    .filter(({ ch }) => {
-      if (!isChapterVisible(ch)) return false;
+    .filter(({ ch, ci }) => {
+      if (!isChapterVisible(ch, ci)) return false;
       if (q && ch.name.toLowerCase().indexOf(q) < 0) return false;
       return true;
     });
 }
 
-/* ===== 章节表头：全选 / 取消全选（章节列表自身） ===== */
+/* ===== 章节表头：全选 / 取消全选 ===== */
 
-// 更新章节列表表头复选框状态（基于列表可见章节的全选 / 半选 / 未选）
-//   - 列表无可见章节 → 禁用
-//   - 列表有可见章节 → 启用，并根据勾选情况显示
 function updateChapterHeaderCheckbox() {
   const cb = $("selectAllChapters");
   if (!cb) return;
@@ -66,11 +72,16 @@ function updateChapterHeaderCheckbox() {
   if (visibleList.length === 0) {
     cb.checked = false;
     cb.indeterminate = false;
-    cb.disabled = true;
+    // ★ 不用 disabled 属性，用 aria-disabled + class，保证 hover 生效
+    cb.setAttribute("aria-disabled", "true");
+    cb.classList.add("disabled");
+    cb.title = "当前列表没有可操作的章节";
     return;
   }
 
-  cb.disabled = false;
+  cb.removeAttribute("aria-disabled");
+  cb.classList.remove("disabled");
+  cb.title = "全选 / 取消全选";
 
   const selected = visibleList.filter(({ ch }) => ch.selected).length;
   if (selected === visibleList.length) {
@@ -85,18 +96,16 @@ function updateChapterHeaderCheckbox() {
   }
 }
 
-// 章节列表表头复选框：只改 selected，不动 listVisibleSet
-//   只对「列表里当前可见的章节」生效
+// 章节列表表头复选框：只改 selected，不动 listVisibleSet / tempVisibleChapters
 function toggleSelectAllChapters(checked) {
   const visibleList = getVisibleChapters();
   if (!visibleList.length) {
-    toast("暂无章节");
+    toast("当前列表没有可操作的章节");
     return;
   }
 
   visibleList.forEach(({ ci }) => {
     data.chapters[ci].selected = !!checked;
-    // ★ 不动 listVisibleSet —— 章节列表条数不变
   });
 
   saveData();
@@ -110,7 +119,6 @@ let dragSrcIndex = null;
 let dragOverIndex = null;
 
 function renderChapterList() {
-  // ★ 每次渲染前先清理悬空名称（防御性）
   pruneListVisibleSet();
 
   const el = $("chapterList");
@@ -123,10 +131,11 @@ function renderChapterList() {
     const q = chapterSearchQuery.toLowerCase();
     filtered = filtered.filter(
       (item) =>
-        isChapterVisible(item.ch) && item.ch.name.toLowerCase().indexOf(q) >= 0,
+        isChapterVisible(item.ch, item.ci) &&
+        item.ch.name.toLowerCase().indexOf(q) >= 0,
     );
   } else {
-    filtered = filtered.filter((item) => isChapterVisible(item.ch));
+    filtered = filtered.filter((item) => isChapterVisible(item.ch, item.ci));
   }
 
   if (badge) {
@@ -143,7 +152,7 @@ function renderChapterList() {
     if (chapterSearchQuery) {
       el.innerHTML =
         '<div class="empty-state searching">未找到匹配的章节</div>';
-    } else if (listVisibleSet.size === 0) {
+    } else if (listVisibleSet.size === 0 && tempVisibleChapters.size === 0) {
       el.innerHTML =
         '<div class="empty-state">请从搜索框下拉列表中勾选章节</div>';
     } else {
@@ -164,10 +173,13 @@ function renderChapterList() {
     d.setAttribute("draggable", viewMode ? "false" : "true");
     d.dataset.index = ci;
 
+    // 手柄：查看模式灰显
     const handleHtml = viewMode
-      ? '<span class="drag-handle disabled" title="查看模式下不可拖拽">≡</span>'
+      ? '<span class="drag-handle disabled" title="查看模式下不可拖拽" ' +
+        "onclick=\"showDisabledTip(event, '拖拽', '查看模式')\">≡</span>"
       : '<span class="drag-handle" title="拖动排序">≡</span>';
 
+    // 复选框：查看/编辑都可勾选
     const checkboxHtml =
       '<input type="checkbox" ' +
       (ch.selected ? "checked " : "") +
@@ -192,14 +204,17 @@ function renderChapterList() {
       " 词" +
       "</span>";
 
+    // ★ 编辑/删除：不用 disabled 属性，改用 .disabled class + onclick 提示
     const editBtnHtml = viewMode
-      ? '<button class="icon-btn disabled" disabled title="查看模式下不可操作">✎</button>'
+      ? '<button class="icon-btn disabled" title="查看模式下不可编辑" ' +
+        "onclick=\"showDisabledTip(event, '编辑', '查看模式')\">✎</button>"
       : '<button class="icon-btn" onclick="renameChapter(' +
         ci +
         ')" title="修改">✎</button>';
 
     const delBtnHtml = viewMode
-      ? '<button class="icon-btn disabled" disabled title="查看模式下不可操作">🗑</button>'
+      ? '<button class="icon-btn disabled" title="查看模式下不可删除" ' +
+        "onclick=\"showDisabledTip(event, '删除', '查看模式')\">🗑</button>"
       : '<button class="icon-btn" onclick="deleteChapter(' +
         ci +
         ')" title="删除">🗑</button>';
@@ -291,7 +306,7 @@ function performReorder(srcIndex, targetIndex, position) {
       currentChapter++;
   }
 
-  // listVisibleSet 存名称，排序不影响
+  tempVisibleChapters.clear();
 
   saveData();
   renderChapterList();
@@ -299,7 +314,7 @@ function performReorder(srcIndex, targetIndex, position) {
   toast("章节排序已更新");
 }
 
-// 点击章节行：已勾选 → 取消勾选；未勾选 → 勾选并设为当前章节
+// 点击章节行
 function selectChapter(ci) {
   const ch = data.chapters[ci];
   if (!ch) return;
@@ -307,10 +322,12 @@ function selectChapter(ci) {
   if (ch.selected) {
     ch.selected = false;
     listVisibleSet.delete(ch.name);
+    tempVisibleChapters.add(ci);
   } else {
     ch.selected = true;
     currentChapter = ci;
     listVisibleSet.add(ch.name);
+    tempVisibleChapters.delete(ci);
   }
 
   saveData();
@@ -318,9 +335,16 @@ function selectChapter(ci) {
   renderWords();
 }
 
-// 章节列表行内复选框：只改 selected，不动 listVisibleSet
+// 章节列表行内复选框
 function toggleChapter(ci, checked) {
   data.chapters[ci].selected = checked;
+
+  if (checked) {
+    tempVisibleChapters.delete(ci);
+  } else {
+    tempVisibleChapters.add(ci);
+  }
+
   saveData();
   renderChapterList();
   renderWords();
@@ -380,8 +404,8 @@ function doDeleteChapter(ci) {
   const ch = data.chapters[ci];
   if (!ch) return;
 
-  // 同步移除该章节名
   listVisibleSet.delete(ch.name);
+  tempVisibleChapters.clear();
 
   data.chapters.splice(ci, 1);
 
@@ -394,4 +418,35 @@ function doDeleteChapter(ci) {
   renderWords();
   updateStats();
   toast("已删除章节");
+}
+
+/* =================================================================
+ * 禁用按钮的点击提示
+ *   - showDisabledTip 供所有模块共用（chapters.js / words.js）
+ *   - 按 reason 给出不同的解决方案提示
+ * ================================================================= */
+function showDisabledTip(e, actionName, reason) {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+
+  let hint = "";
+  switch (reason) {
+    case "查看模式":
+      hint = "查看模式下不可" + actionName + "，请切换到编辑模式";
+      break;
+    case "多章节合集":
+      hint = "多章节合集下不可" + actionName + "，请只选中一个章节";
+      break;
+    case "去重模式":
+      hint = "去重模式下不可" + actionName + "，请关闭去重后重试";
+      break;
+    case "单词数不足":
+      hint = "单词数不足 2 个时不可" + actionName;
+      break;
+    default:
+      hint = (reason ? reason + "下" : "当前状态下") + "不可" + actionName;
+  }
+  toast(hint);
 }

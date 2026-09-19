@@ -231,62 +231,65 @@ function safeCall(name) {
 // ===================================================================
 // 九、应用初始化
 // ===================================================================
-function initApp() {
-  safeCall("loadData");
-  safeCall("loadDedupe");
-  safeCall("loadCollapseState");
-  safeCall("loadLangSelSetting");
+async function initApp() {
+  try {
+    // 1. 数据加载（异步）
+    if (typeof loadData === "function") await loadData();
 
-  safeCall("applyCollapseState");
+    // 2. 小配置
+    if (typeof loadDedupe === "function") loadDedupe();
+    if (typeof loadCollapseState === "function") loadCollapseState();
+    if (typeof loadLangSelSetting === "function") loadLangSelSetting();
 
-  // ★ 数据加载完后，用当前 selected 重建 listVisibleSet
-  if (typeof initListVisibleSet === "function") initListVisibleSet();
+    if (typeof applyCollapseState === "function") applyCollapseState();
 
-  // ★ 若已有选中章节，自动展开章节列表
-  if (typeof listVisibleSet !== "undefined" && listVisibleSet.size > 0) {
-    if (typeof collapseState !== "undefined") {
-      collapseState.chapter = false;
-      if (typeof saveCollapseState === "function") saveCollapseState();
-      if (typeof applyCollapseState === "function") applyCollapseState();
-    }
+    // 3. listVisibleSet
+    if (typeof initListVisibleSet === "function") initListVisibleSet();
+
+    // 4. 渲染
+    if (typeof renderChapterList === "function") renderChapterList();
+    if (typeof renderWords === "function") renderWords();
+    if (typeof updateStats === "function") updateStats();
+
+    // 5. 事件
+    if (typeof bindGlobalEvents === "function") bindGlobalEvents();
+
+    // 6. 打字机
+    if (typeof initChapterSearchHint === "function") initChapterSearchHint();
+
+    console.log("[单词精灵] 初始化完成");
+  } catch (e) {
+    console.error("initApp 失败：", e);
   }
-
-  safeCall("renderChapterList");
-  safeCall("renderWords");
-  safeCall("updateStats");
-
-  safeCall("bindGlobalEvents");
-
-  // ★ 启动章节搜索框的打字机提示
-  if (typeof initChapterSearchHint === "function") initChapterSearchHint();
-
-  console.log("[单词精灵] 初始化完成");
 }
 
 // ===================================================================
-// 十、启动
+// 十、启动（唯一入口）
 // ===================================================================
 (function boot() {
   document.body.classList.add("preload");
 
+  // 1. 注入弹窗 HTML（同步）
   try {
     injectPartials();
   } catch (e) {
     console.error("注入弹窗 HTML 失败：", e);
   }
 
-  try {
-    initApp();
-  } catch (e) {
-    console.error("应用初始化失败：", e);
-    if (typeof toast === "function") {
-      toast("应用初始化失败：" + (e && e.message ? e.message : e));
-    }
-  }
-
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      document.body.classList.remove("preload");
+  // 2. 初始化应用（异步）
+  initApp()
+    .catch((e) => {
+      console.error("应用初始化失败：", e);
+      if (typeof toast === "function") {
+        toast("应用初始化失败：" + (e && e.message ? e.message : e));
+      }
+    })
+    .finally(() => {
+      // 3. 渲染完成后恢复过渡动画
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          document.body.classList.remove("preload");
+        });
+      });
     });
-  });
 })();

@@ -2,7 +2,7 @@
  * js/chapters-search.js - 章节搜索：可编辑下拉列表 + 打字机提示
  *
  * 依赖：
- *   - chapters.js : renderChapterList, listVisibleSet
+ *   - chapters.js : renderChapterList, listVisibleSet, tempVisibleChapters
  *   - words.js    : renderWords
  *   - storage.js  : saveData
  *   - core.js     : $, esc, toast
@@ -126,16 +126,22 @@ function renderChapterComboPanel() {
 
 // 面板表头：全选 / 取消全选（基于当前搜索结果）
 //   ★ 同时更新 selected 与 listVisibleSet（按名称）
+//   ★ 面板操作会清掉对应的 tempVisibleChapters 索引
 function toggleSelectAllFromCombo(checked) {
   const q = (chapterSearchQuery || "").toLowerCase();
-  const list = data.chapters.filter(
-    (ch) => !q || ch.name.toLowerCase().indexOf(q) >= 0,
-  );
+  const list = data.chapters
+    .map((ch, ci) => ({ ch, ci }))
+    .filter(({ ch }) => !q || ch.name.toLowerCase().indexOf(q) >= 0);
 
-  list.forEach((ch) => {
+  list.forEach(({ ch, ci }) => {
     ch.selected = !!checked;
-    if (checked) listVisibleSet.add(ch.name);
-    else listVisibleSet.delete(ch.name);
+    if (checked) {
+      listVisibleSet.add(ch.name);
+      tempVisibleChapters.delete(ci);
+    } else {
+      listVisibleSet.delete(ch.name);
+      tempVisibleChapters.delete(ci); // 面板取消 → 列表立即移除
+    }
   });
 
   saveData();
@@ -143,25 +149,31 @@ function toggleSelectAllFromCombo(checked) {
   renderChapterList();
   renderWords();
 
-  autoExpandChapterListIfAny(); // ★ 全选后有内容就展开
+  autoExpandChapterListIfAny();
 }
 
 // 面板内单项勾选/取消
 //   ★ 同时更新 selected 与 listVisibleSet（按名称）
+//   ★ 面板操作会清掉对应的 tempVisibleChapters 索引
 function toggleChapterFromCombo(ci, checked) {
   if (!data.chapters[ci]) return;
   const ch = data.chapters[ci];
   ch.selected = !!checked;
 
-  if (checked) listVisibleSet.add(ch.name);
-  else listVisibleSet.delete(ch.name);
+  if (checked) {
+    listVisibleSet.add(ch.name);
+    tempVisibleChapters.delete(ci);
+  } else {
+    listVisibleSet.delete(ch.name);
+    tempVisibleChapters.delete(ci); // 面板取消 → 列表立即移除
+  }
 
   saveData();
   renderChapterComboPanel();
   renderChapterList();
   renderWords();
 
-  autoExpandChapterListIfAny(); // ★ 勾选后有内容就展开
+  autoExpandChapterListIfAny();
 }
 
 function onChapterSearchKeydown(e) {
@@ -208,7 +220,10 @@ function updateComboActive(items) {
   }
 }
 
+// 输入框输入：清空临时可见集合，刷新章节列表 + 刷新下拉面板
 function onChapterSearch() {
+  tempVisibleChapters.clear(); // ★ 用户主动搜索时清空临时状态
+
   const inp = $("chapterSearch");
   const wrap = $("chapterCombo");
   chapterSearchQuery = inp ? inp.value.trim() : "";
@@ -225,8 +240,11 @@ function onChapterSearch() {
   }
 }
 
+// 清空输入：清空临时可见集合，关闭面板，恢复章节列表
 function clearChapterSearch(e) {
   if (e) e.stopPropagation();
+
+  tempVisibleChapters.clear(); // ★ 清空搜索时也清空临时状态
 
   const inp = $("chapterSearch");
   if (inp) inp.value = "";
@@ -257,7 +275,6 @@ function startChapterSearchHintTyper() {
   const el = $("chapterSearchHint");
   if (!el) return;
 
-  // 停止上一轮（防止重复启动）
   if (chapterSearchHintTimer) {
     clearTimeout(chapterSearchHintTimer);
     chapterSearchHintTimer = null;
@@ -268,7 +285,6 @@ function startChapterSearchHintTyper() {
     const input = $("chapterSearch");
     if (!combo || !el) return;
 
-    // 输入框有内容 / 正在聚焦 → 清空提示内容，稍后再试
     const focused = input && document.activeElement === input;
     if (combo.classList.contains("has-text") || focused) {
       el.textContent = "";
@@ -279,23 +295,19 @@ function startChapterSearchHintTyper() {
     const text = chapterSearchHintTexts[chapterSearchHintTextIdx];
 
     if (!chapterSearchHintDeleting) {
-      // 打字阶段
       chapterSearchHintCharIdx++;
       el.textContent = text.slice(0, chapterSearchHintCharIdx);
 
       if (chapterSearchHintCharIdx >= text.length) {
-        // 打完 → 停留 1.6 秒，然后进入删除阶段
         chapterSearchHintDeleting = true;
         chapterSearchHintTimer = setTimeout(tick, 3000);
         return;
       }
     } else {
-      // 删除阶段
       chapterSearchHintCharIdx--;
       el.textContent = text.slice(0, chapterSearchHintCharIdx);
 
       if (chapterSearchHintCharIdx <= 0) {
-        // 删完 → 切换下一条，停留 400ms 后重新开始
         chapterSearchHintDeleting = false;
         chapterSearchHintTextIdx =
           (chapterSearchHintTextIdx + 1) % chapterSearchHintTexts.length;
@@ -304,7 +316,6 @@ function startChapterSearchHintTyper() {
       }
     }
 
-    // 打字速度 100ms，删除速度 80ms
     chapterSearchHintTimer = setTimeout(
       tick,
       chapterSearchHintDeleting ? 100 : 80,
@@ -321,9 +332,9 @@ function initChapterSearchHint() {
 
 // 若章节列表可见集合非空，则自动展开章节列表
 function autoExpandChapterListIfAny() {
-  if (listVisibleSet.size === 0) return;
+  if (listVisibleSet.size === 0 && tempVisibleChapters.size === 0) return;
   if (typeof collapseState === "undefined") return;
-  if (collapseState.chapter === false) return; // 已展开
+  if (collapseState.chapter === false) return;
 
   collapseState.chapter = false;
   if (typeof saveCollapseState === "function") saveCollapseState();

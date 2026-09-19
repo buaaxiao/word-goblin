@@ -6,6 +6,8 @@
 
 const THEME_KEY = "wordDictation.theme.v1";
 
+let openWordDetails = new Set();
+
 function loadTheme() {
   try {
     const saved = localStorage.getItem(THEME_KEY);

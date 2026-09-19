@@ -268,24 +268,73 @@ function syncFromCloud() {
 
 async function doSyncFromCloud() {
   if (location.protocol === "file:") {
-    toast(
-      "本地文件模式下不支持同步，请用 HTTP 服务器访问（如 python3 -m http.server）",
-    );
+    toast("本地文件模式下不支持同步，请用 HTTP 服务器访问");
     return;
   }
 
   try {
-    const res = await fetch("data.json", { cache: "no-store" });
+    const res = await fetch("data.json?_=" + Date.now(), { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
-    const remote = await res.json();
-    const incoming = remote && remote.data ? remote.data : remote;
-    if (!incoming || !Array.isArray(incoming.chapters)) {
-      toast("data.json 格式不正确：缺少 chapters");
-      return;
-    }
-    doImportMerge(incoming);
+    const cloud = await res.json();
+
+    await mergeCloudIntoLocal(cloud);
+    await loadData();
+
+    renderChapterList();
+    renderWords();
+    updateStats();
+    if (typeof updateChapterHeaderCheckbox === "function")
+      updateChapterHeaderCheckbox();
+
+    toast("同步完成");
   } catch (e) {
     console.error("同步失败：", e);
     toast("同步失败：" + (e && e.message ? e.message : e));
+  }
+}
+
+// 把共享词库合并进 wordGoblinLocal（保留 selected / 统计）
+async function mergeCloudIntoLocal(cloud) {
+  const localChapters = await dbGetAllChapters();
+  const localWords = await dbGetAllWords();
+  const localChapterByName = new Map(localChapters.map((c) => [c.name, c]));
+
+  for (const cch of cloud.chapters || []) {
+    const localCh = localChapterByName.get(cch.name);
+    const chapterId = localCh ? localCh.id : genId("ch_");
+
+    await dbPutChapter({
+      id: chapterId,
+      name: cch.name,
+      selected: localCh ? !!localCh.selected : false,
+      dictLang:
+        typeof cch.dictLang === "number"
+          ? cch.dictLang
+          : localCh
+            ? localCh.dictLang
+            : 0,
+      order: localCh ? localCh.order : 0,
+    });
+
+    const localWordsOfCh = localCh
+      ? localWords.filter((w) => w.chapterId === localCh.id)
+      : [];
+    const localWordByText = new Map(localWordsOfCh.map((w) => [w.text, w]));
+
+    for (const cw of cch.words || []) {
+      const lw = localWordByText.get(cw.text);
+      await dbPutWord({
+        id: lw ? lw.id : genId("w_"),
+        chapterId,
+        text: cw.text,
+        meaning: cw.meaning,
+        wrongCount: lw ? lw.wrongCount : 0,
+        correctCount: lw ? lw.correctCount : 0,
+        lastErrorDate: lw ? lw.lastErrorDate : "",
+        lastCorrectDate: lw ? lw.lastCorrectDate : "",
+        scoreCount: lw ? lw.scoreCount : 0,
+        scoreSum: lw ? lw.scoreSum : 0,
+      });
+    }
   }
 }

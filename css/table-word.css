@@ -230,3 +230,15 @@
   font-style: italic;
   padding: 2px 6px;
 }
+
+/* =================================================================
+ * 单词列表标题：单行显示，超出省略
+ *   - min-width: 0 让 flex item 能收缩（否则被内容撑开，无法截断）
+ *   - overflow + text-overflow + white-space 三件套实现「…」
+ * ================================================================= */
+#wordChapterTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

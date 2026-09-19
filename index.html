@@ -8,18 +8,20 @@
     />
     <meta name="theme-color" content="#4a7cff" id="themeColorMeta" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
     />
     <title>单词精灵</title>
+    <link rel="icon" href="data:," />
 
     <!-- CSS：按依赖顺序引入 -->
     <link rel="stylesheet" href="css/variables.css" />
     <link rel="stylesheet" href="css/base.css" />
     <link rel="stylesheet" href="css/table-base.css" />
-    <link rel="stylesheet" href="css/chapter-table.css" />
-    <link rel="stylesheet" href="css/word-table.css" />
+    <link rel="stylesheet" href="css/table-chapter.css" />
+    <link rel="stylesheet" href="css/table-word.css" />
     <link rel="stylesheet" href="css/chapter-search.css" />
     <link rel="stylesheet" href="css/chapter-hint.css" />
     <link rel="stylesheet" href="css/modals.css" />
@@ -113,7 +115,7 @@
                   onclick="syncFromCloud()"
                   title="数据同步：将共享词库合并到本地，本地数据可能丢失，请先导出备份"
                 >
-                  <span class="btn-ico">🔄</span><span>同步</span>
+                  <span class="btn-ico">☁️</span><span>同步</span>
                 </button>
               </div>
             </div>
@@ -281,6 +283,7 @@
 
     <!-- js 逻辑：按依赖顺序 -->
     <script src="js/core.js"></script>
+    <script src="js/db.js"></script>
     <script src="js/storage.js"></script>
     <script src="js/reports.js"></script>
     <script src="js/words.js"></script>

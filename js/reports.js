@@ -3,6 +3,34 @@
  * 自 index.html 内联脚本拆分而来；所有函数保持为全局 API（兼容内联 onclick）。
  * =================================================================== */
 
+/* ===================================================================
+ * 顶部统计卡：章节数 / 单词数 / 错词数 / 已选章节
+ * =================================================================== */
+function updateStats() {
+  const totalChapters = (data.chapters || []).length;
+  const totalWords = (data.chapters || []).reduce(
+    (n, ch) => n + (ch.words ? ch.words.length : 0),
+    0,
+  );
+  const totalWrong = (data.chapters || []).reduce(
+    (n, ch) =>
+      n +
+      (ch.words ? ch.words.filter((w) => (w.wrongCount || 0) > 0).length : 0),
+    0,
+  );
+  const totalSelected = (data.chapters || []).filter((c) => c.selected).length;
+
+  const el1 = document.getElementById("statChapters");
+  const el2 = document.getElementById("statWords");
+  const el3 = document.getElementById("statWrong");
+  const el4 = document.getElementById("statSelected");
+
+  if (el1) el1.textContent = totalChapters;
+  if (el2) el2.textContent = totalWords;
+  if (el3) el3.textContent = totalWrong;
+  if (el4) el4.textContent = totalSelected;
+}
+
 function renderChart() {
   const container = $("chartContainer");
   if (!container) return;
@@ -222,6 +250,10 @@ function renderHistory() {
     .join("");
 }
 
+/* ===================================================================
+ * 清空历史
+ * =================================================================== */
+
 // 清空历史：弹出确认对话框
 function confirmClearHistory() {
   confirmDialog(
@@ -234,10 +266,22 @@ function confirmClearHistory() {
 }
 
 // 实际清空历史
-function doClearHistory() {
-  data.history = [];
-  saveData();
-  renderHistory();
-  renderChart();
-  toast("历史已清空");
+async function doClearHistory() {
+  try {
+    data.history = [];
+
+    if (typeof dbClearHistory === "function") {
+      await dbClearHistory();
+    } else if (typeof saveData === "function") {
+      // 兜底
+      await saveData();
+    }
+
+    renderHistory();
+    renderChart();
+    toast("历史已清空");
+  } catch (e) {
+    console.error("清空历史失败：", e);
+    toast("清空历史失败：" + (e && e.message ? e.message : e));
+  }
 }
