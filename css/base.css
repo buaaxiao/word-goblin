@@ -803,3 +803,32 @@ button:disabled {
 .theme-tag {
   display: none !important;
 }
+
+/* =================================================================
+ * 表头排序
+ *   - .sortable：可点击列
+ *   - .sorted：当前排序列
+ *   - .sort-icon：↑ / ↓ 图标
+ * ================================================================= */
+.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+.sortable:hover {
+  color: var(--primary);
+}
+
+.sortable.sorted {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.sortable .sort-icon {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary);
+  opacity: 0.9;
+  margin-left: 2px;
+}

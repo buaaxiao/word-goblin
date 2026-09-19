@@ -7,6 +7,15 @@
 let wordDragSrcIndex = null;
 let wordDragOverIndex = null;
 
+/* =================================================================
+ * 单词排序状态
+ *   - null：不排序（按 getMergedItems 原顺序）
+ *   - { field, order }：field ∈ 'text' | 'correctCount' | 'lastCorrectDate'
+ *                                | 'wrongCount' | 'lastErrorDate' | 'score'
+ *     order ∈ 'asc' | 'desc'
+ * =================================================================== */
+let wordSort = null;
+
 // ===== 单词去重 =====
 const DEDUPE_KEY = "wordDictation.dedupe.v1";
 let dedupeWords = false;
@@ -65,6 +74,40 @@ function getMergedItems() {
   }
   shown._raw = raw;
   return shown;
+}
+
+/* =================================================================
+ * 单词表头排序
+ * ================================================================= */
+function toggleWordSort(field) {
+  if (!wordSort || wordSort.field !== field) {
+    wordSort = { field, order: "asc" };
+  } else if (wordSort.order === "asc") {
+    wordSort = { field, order: "desc" };
+  } else {
+    wordSort = null; // 第三次点击：取消排序
+  }
+  renderWords();
+}
+
+// 更新单词表头的排序图标
+function updateWordSortIcons() {
+  const header = document.querySelector(".word-table-header");
+  if (!header) return;
+  header.querySelectorAll(".sortable").forEach((el) => {
+    const icon = el.querySelector(".sort-icon");
+    if (!icon) return;
+    const onclick = el.getAttribute("onclick") || "";
+    const m = onclick.match(/'([^']+)'/);
+    const field = m ? m[1] : "";
+    if (wordSort && wordSort.field === field) {
+      icon.textContent = wordSort.order === "asc" ? "↑" : "↓";
+      el.classList.add("sorted");
+    } else {
+      icon.textContent = "";
+      el.classList.remove("sorted");
+    }
+  });
 }
 
 /* =================================================================
@@ -202,6 +245,7 @@ function renderWords() {
     if (titleEl) titleEl.textContent = "未选中章节";
     el.innerHTML =
       '<div class="empty-state">未选中任何章节，请先勾选要默写的章节</div>';
+    updateWordSortIcons();
     updateStats();
     return;
   }
@@ -236,6 +280,48 @@ function renderWords() {
     );
   }
 
+  // ===== 应用排序 =====
+  if (wordSort) {
+    const { field, order } = wordSort;
+    const dir = order === "desc" ? -1 : 1;
+    filtered.sort((a, b) => {
+      const wa = a.it.w;
+      const wb = b.it.w;
+      let va, vb;
+      switch (field) {
+        case "text":
+          va = (wa.text || "").toLowerCase();
+          vb = (wb.text || "").toLowerCase();
+          break;
+        case "correctCount":
+          va = wa.correctCount || 0;
+          vb = wb.correctCount || 0;
+          break;
+        case "lastCorrectDate":
+          va = wa.lastCorrectDate || "";
+          vb = wb.lastCorrectDate || "";
+          break;
+        case "wrongCount":
+          va = wa.wrongCount || 0;
+          vb = wb.wrongCount || 0;
+          break;
+        case "lastErrorDate":
+          va = wa.lastErrorDate || "";
+          vb = wb.lastErrorDate || "";
+          break;
+        case "score":
+          va = parseFloat(avg(wa)) || 0;
+          vb = parseFloat(avg(wb)) || 0;
+          break;
+        default:
+          return 0;
+      }
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+  }
+
   if (badge) {
     if (wordSearchQuery) badge.textContent = "找到 " + filtered.length + " 个";
     else if (dedupeWords && rawCount > items.length)
@@ -246,11 +332,13 @@ function renderWords() {
   if (!items.length) {
     el.innerHTML =
       '<div class="empty-state">暂无单词，请先添加或勾选其他章节</div>';
+    updateWordSortIcons();
     updateStats();
     return;
   }
   if (!filtered.length) {
     el.innerHTML = '<div class="empty-state searching">未找到匹配的单词</div>';
+    updateWordSortIcons();
     updateStats();
     return;
   }
@@ -359,6 +447,7 @@ function renderWords() {
 
     el.appendChild(d);
   });
+  updateWordSortIcons();
   updateStats();
 }
 
@@ -388,6 +477,9 @@ function performWordReorder(srcIndex, targetIndex, position) {
   if (insertIndex > words.length) insertIndex = words.length;
   words.splice(insertIndex, 0, item);
   openWordDetails.clear();
+
+  // ★ 手动拖拽后，取消排序状态
+  wordSort = null;
 
   saveData();
   renderWords();

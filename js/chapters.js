@@ -5,6 +5,7 @@
  *   - 拖拽排序
  *   - 表头复选框（全选/半选/未选、禁用态）
  *   - 无可见章节时自动折叠章节列表
+ *   - 表头点击排序
  *
  * 弹窗相关见 chapters-modals.js
  * 搜索下拉 + 打字机提示见 chapters-search.js
@@ -18,6 +19,13 @@
  * =================================================================== */
 let listVisibleSet = new Set(); // Set<chapterName>
 let tempVisibleChapters = new Set(); // Set<chapterIndex>
+
+/* =================================================================
+ * 章节排序状态
+ *   - null：不排序（按 data.chapters 原顺序）
+ *   - { field: 'name' | 'count', order: 'asc' | 'desc' }
+ * =================================================================== */
+let chapterSort = null;
 
 // 数据加载 / 导入 / 同步后重建：把当前 selected 的章节名加入集合
 function initListVisibleSet() {
@@ -73,6 +81,40 @@ function autoCollapseChapterIfEmpty() {
   collapseState.chapter = true;
   if (typeof saveCollapseState === "function") saveCollapseState();
   if (typeof applyCollapseState === "function") applyCollapseState();
+}
+
+/* =================================================================
+ * 章节表头排序
+ * ================================================================= */
+function toggleChapterSort(field) {
+  if (!chapterSort || chapterSort.field !== field) {
+    chapterSort = { field, order: "asc" };
+  } else if (chapterSort.order === "asc") {
+    chapterSort = { field, order: "desc" };
+  } else {
+    chapterSort = null; // 第三次点击：取消排序
+  }
+  renderChapterList();
+}
+
+// 更新章节表头的排序图标
+function updateChapterSortIcons() {
+  const header = document.querySelector(".chapter-table-header");
+  if (!header) return;
+  header.querySelectorAll(".sortable").forEach((el) => {
+    const icon = el.querySelector(".sort-icon");
+    if (!icon) return;
+    const onclick = el.getAttribute("onclick") || "";
+    const m = onclick.match(/'([^']+)'/);
+    const field = m ? m[1] : "";
+    if (chapterSort && chapterSort.field === field) {
+      icon.textContent = chapterSort.order === "asc" ? "↑" : "↓";
+      el.classList.add("sorted");
+    } else {
+      icon.textContent = "";
+      el.classList.remove("sorted");
+    }
+  });
 }
 
 /* ===== 章节表头：全选 / 取消全选 ===== */
@@ -152,6 +194,27 @@ function renderChapterList() {
     filtered = filtered.filter((item) => isChapterVisible(item.ch, item.ci));
   }
 
+  // ===== 应用排序（仅对可见章节排序，不影响 data.chapters 原顺序） =====
+  if (chapterSort) {
+    const { field, order } = chapterSort;
+    const dir = order === "desc" ? -1 : 1;
+    filtered.sort((a, b) => {
+      let va, vb;
+      if (field === "name") {
+        va = (a.ch.name || "").toLowerCase();
+        vb = (b.ch.name || "").toLowerCase();
+      } else if (field === "count") {
+        va = (a.ch.words || []).length;
+        vb = (b.ch.words || []).length;
+      } else {
+        return 0;
+      }
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+  }
+
   // ===== 徽章文字 =====
   if (badge) {
     if (chapterSearchQuery) {
@@ -180,6 +243,7 @@ function renderChapterList() {
       el.innerHTML = '<div class="empty-state">暂无章节</div>';
     }
     updateChapterHeaderCheckbox();
+    updateChapterSortIcons();
     updateStats();
 
     // ★ 无可见章节 → 自动折叠章节列表
@@ -303,6 +367,7 @@ function renderChapterList() {
   });
 
   updateChapterHeaderCheckbox();
+  updateChapterSortIcons();
   updateStats();
 
   // ★ 有可见章节 → 不强制展开（尊重用户手动折叠）
@@ -335,6 +400,9 @@ function performReorder(srcIndex, targetIndex, position) {
   }
 
   tempVisibleChapters.clear();
+
+  // ★ 手动拖拽后，取消排序状态（避免显示顺序与 data 顺序不一致的困惑）
+  chapterSort = null;
 
   saveData();
   renderChapterList();

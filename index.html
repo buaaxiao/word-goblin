@@ -182,8 +182,18 @@
                 onchange="toggleSelectAllChapters(this.checked)"
                 title="全选 / 取消全选"
               />
-              <span class="th-name" title="章节名称">章节名称</span>
-              <span class="th-count" title="该章节包含的单词数">单词数</span>
+              <span
+                class="th-name sortable"
+                onclick="toggleChapterSort('name')"
+                title="点击按名称排序"
+                >章节名称 <span class="sort-icon"></span
+              ></span>
+              <span
+                class="th-count sortable"
+                onclick="toggleChapterSort('count')"
+                title="点击按单词数排序"
+                >单词数 <span class="sort-icon"></span
+              ></span>
               <span class="th-action-edit" title="编辑">编辑</span>
               <span class="th-action-del" title="删除">删除</span>
             </div>
@@ -245,12 +255,42 @@
 
             <div class="word-table-header">
               <span class="th-handle-spacer"></span>
-              <span class="th-name" title="单词/词语">单词 / 词语</span>
-              <span class="th-num" title="答对次数">✅ 对</span>
-              <span class="th-date" title="最后答对日期">最后对</span>
-              <span class="th-num" title="答错次数">❌ 错</span>
-              <span class="th-date" title="最后答错日期">最后错</span>
-              <span class="th-score" title="平均得分">⭐ 均分</span>
+              <span
+                class="th-name sortable"
+                onclick="toggleWordSort('text')"
+                title="点击按单词排序"
+                >单词 / 词语 <span class="sort-icon"></span
+              ></span>
+              <span
+                class="th-num sortable"
+                onclick="toggleWordSort('correctCount')"
+                title="点击按答对次数排序"
+                >✅ 对 <span class="sort-icon"></span
+              ></span>
+              <span
+                class="th-date sortable"
+                onclick="toggleWordSort('lastCorrectDate')"
+                title="点击按最后答对日期排序"
+                >最后对 <span class="sort-icon"></span
+              ></span>
+              <span
+                class="th-num sortable"
+                onclick="toggleWordSort('wrongCount')"
+                title="点击按答错次数排序"
+                >❌ 错 <span class="sort-icon"></span
+              ></span>
+              <span
+                class="th-date sortable"
+                onclick="toggleWordSort('lastErrorDate')"
+                title="点击按最后答错日期排序"
+                >最后错 <span class="sort-icon"></span
+              ></span>
+              <span
+                class="th-score sortable"
+                onclick="toggleWordSort('score')"
+                title="点击按均分排序"
+                >⭐ 均分 <span class="sort-icon"></span
+              ></span>
               <span class="th-action-edit" title="编辑">编辑</span>
               <span class="th-action-del" title="删除">删除</span>
             </div>
