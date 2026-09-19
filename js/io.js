@@ -280,7 +280,7 @@ async function doSyncFromCloud() {
   }
 
   try {
-    const res = await fetch("data.json?_=" + Date.now(), { cache: "no-store" });
+    const res = await fetch(getDataUrl(), { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const cloud = await res.json();
 

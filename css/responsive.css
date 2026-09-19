@@ -5,13 +5,11 @@
 
 /* ===== 快捷操作行：窄屏缩小字号，允许换行 ===== */
 @media (max-width: 420px) {
-  /* 快捷操作行：允许换行 */
   .quick-actions .row {
     flex-wrap: wrap;
     row-gap: 8px;
   }
 
-  /* 两个按钮统一尺寸，不被父容器压缩 */
   .quick-actions .primary,
   .quick-actions .data-ops {
     flex-shrink: 0;
@@ -30,59 +28,77 @@
   .data-ops-trigger {
     gap: 4px;
   }
-
   .btn-ico {
     font-size: 14px;
   }
-
   .data-ops-caret {
     font-size: 9px;
   }
 }
 
-/* ===== 单词表格：窄屏隐藏两个日期列 ===== */
+/* =================================================================
+ * 窄屏（≤640px）：隐藏日期列 + 名称列保底宽度
+ * ================================================================= */
 @media (max-width: 640px) {
-  /* 编辑模式：8 列（手柄 + 单词 + 对 + 错 + 均分 + 编辑 + 删除） */
-  .word-table-header,
-  .word-item {
+  /* --- 章节表（单行）--- */
+  .chapter-table-header,
+  .chapter-item {
     grid-template-columns:
-      var(--col-handle) minmax(0, 1fr) var(--col-num) var(--col-num)
-      var(--col-score) var(--col-action) var(--col-action);
+      var(--col-handle)
+      20px
+      minmax(100px, 1fr)
+      72px
+      var(--col-action)
+      var(--col-action);
+    column-gap: 4px;
   }
 
-  /* 查看模式：同上，仍带手柄 */
+  /* --- 单词表（单行，隐藏两个日期列）--- */
+  .word-table-header,
+  .word-item,
   #wordBody.list-view .word-table-header,
   #wordBody.list-view .word-item {
     grid-template-columns:
-      var(--col-handle) minmax(0, 1fr) var(--col-num) var(--col-num)
-      var(--col-score) var(--col-action) var(--col-action);
+      var(--col-handle)
+      minmax(80px, 1fr)
+      var(--col-num)
+      var(--col-num)
+      var(--col-score)
+      var(--col-action)
+      var(--col-action);
+    column-gap: 4px;
   }
 
-  /* 多章节 / 去重：7 列（无手柄） */
+  /* 多章节 / 去重：无手柄 */
   #wordBody.multi-ch .word-table-header,
   #wordBody.multi-ch .word-item {
     grid-template-columns:
-      minmax(0, 1fr) var(--col-num) var(--col-num) var(--col-score)
-      var(--col-action) var(--col-action);
+      minmax(80px, 1fr)
+      var(--col-num)
+      var(--col-num)
+      var(--col-score)
+      var(--col-action)
+      var(--col-action);
   }
 
+  /* 隐藏表头与数据的日期列 */
   .th-date,
   .wstat-date {
     display: none;
   }
 }
 
-/* ===== 小屏微调（统计卡片 + 通用小屏） ===== */
+/* =================================================================
+ * 更窄屏（≤480px）：再隐藏均分列
+ * ================================================================= */
 @media (max-width: 480px) {
   /* --- 统计卡片 --- */
   .stats-card {
     padding: 12px 10px;
   }
-
   .stat-num {
     font-size: 19px;
   }
-
   .stat-label {
     font-size: 10.5px;
   }
@@ -92,12 +108,10 @@
     font-size: 34px;
     padding: 26px 10px;
   }
-
   .nav-btn {
     min-width: 70px;
     padding: 14px;
   }
-
   .nav-btn .nav-label {
     font-size: 13px;
   }
@@ -106,12 +120,10 @@
   .appbar h1 {
     font-size: 17px;
   }
-
   .theme-tag {
     padding: 5px 9px;
     font-size: 12px;
   }
-
   .theme-tag .theme-text {
     display: none;
   }
@@ -120,14 +132,56 @@
   main {
     padding: 10px;
   }
-
   .card {
     padding: 14px;
   }
 
   /* --- 单词列表标题 --- */
   #wordChapterTitle {
-    font-size: 14px;
     max-width: 180px;
+  }
+
+  /* --- 章节表：名称列再宽一点 --- */
+  .chapter-table-header,
+  .chapter-item {
+    grid-template-columns:
+      var(--col-handle)
+      20px
+      minmax(120px, 1fr)
+      72px
+      var(--col-action)
+      var(--col-action);
+    column-gap: 3px;
+  }
+
+  /* --- 单词表：隐藏均分列 --- */
+  .word-table-header,
+  .word-item,
+  #wordBody.list-view .word-table-header,
+  #wordBody.list-view .word-item {
+    grid-template-columns:
+      var(--col-handle)
+      minmax(80px, 1fr)
+      var(--col-num)
+      var(--col-num)
+      var(--col-action)
+      var(--col-action);
+    column-gap: 3px;
+  }
+
+  #wordBody.multi-ch .word-table-header,
+  #wordBody.multi-ch .word-item {
+    grid-template-columns:
+      minmax(80px, 1fr)
+      var(--col-num)
+      var(--col-num)
+      var(--col-action)
+      var(--col-action);
+  }
+
+  /* 隐藏均分列 */
+  .th-score,
+  .wstat-score {
+    display: none;
   }
 }

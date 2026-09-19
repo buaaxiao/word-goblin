@@ -5,6 +5,13 @@
 "use strict";
 
 const THEME_KEY = "wordDictation.theme.v1";
+const DATA_DIR = "data";
+const DATA_FILE = "data.json";
+const DATA_URL = DATA_DIR + "/" + DATA_FILE;
+
+function getDataUrl() {
+  return DATA_URL + "?_=" + Date.now();
+}
 
 let openWordDetails = new Set();
 
@@ -51,15 +58,7 @@ function syncThemeModeRadios(mode) {
     r.checked = r.value === mode;
   });
 }
-function openSettings() {
-  syncThemeModeRadios(getCurrentThemeMode());
-  const m = $("settingsModal");
-  if (m) m.classList.remove("hidden");
-}
-function closeSettings() {
-  const m = $("settingsModal");
-  if (m) m.classList.add("hidden");
-}
+// ★ 注意：openSettings / closeSettings 已迁移到 main.js，不再在此处定义
 
 // ===== 默认报词方式：以设置界面的“报词方式”设置为准 =====
 const LANGSEL_KEY = "wordDictation.langSel.v1";
@@ -100,7 +99,31 @@ function saveCollapseState() {
     localStorage.setItem(COLLAPSE_KEY, JSON.stringify(collapseState));
   } catch (e) {}
 }
-function applyCollapseState() {
+
+/**
+ * 应用折叠状态到 DOM。
+ * @param {boolean} isFirstLoad 是否首次加载：
+ *   - true  ：根据「当前单词表显示条数」自动决定是否折叠
+ *             · 单词表 0 条 → 折叠单词区
+ *             · 章节数为 0 → 折叠章节区
+ *   - false ：仅按 collapseState 渲染，不自动改变折叠状态
+ */
+function applyCollapseState(isFirstLoad = false) {
+  if (isFirstLoad) {
+    // 只在初始化时判断一次：单词表 0 条 → 折叠
+    // 口径 = 当前 selected=true 章节的所有单词数
+    // （初始化时无搜索、无去重，与 renderWords 的实际显示口径一致）
+    const visibleWordCount = getSelectedWordCount();
+
+    if (visibleWordCount === 0) {
+      collapseState.word = true;
+    }
+    if (data.chapters.length === 0) {
+      collapseState.chapter = true;
+    }
+    if (typeof saveCollapseState === "function") saveCollapseState();
+  }
+
   applyOneCollapse(
     "chapterHeader",
     "chapterBody",
@@ -118,6 +141,20 @@ function applyCollapseState() {
     collapseState.word,
   );
 }
+
+/**
+ * 工具：当前所有 selected=true 的章节里的单词总数。
+ * 与 renderWords() 内部"合并选中章节单词"的口径一致。
+ */
+function getSelectedWordCount() {
+  let n = 0;
+  for (let i = 0; i < data.chapters.length; i++) {
+    const ch = data.chapters[i];
+    if (ch.selected) n += (ch.words || []).length;
+  }
+  return n;
+}
+
 function applyOneCollapse(
   headerId,
   bodyId,
@@ -299,17 +336,7 @@ function toast(msg) {
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 2200);
 }
-function openModal(title, bodyHtml) {
-  $("modalBody").innerHTML =
-    '<div class="modal-head"><h2>' +
-    esc(title) +
-    '</h2><button class="modal-close" onclick="closeModal()" title="关闭">✕</button></div>' +
-    bodyHtml;
-  $("modal").classList.remove("hidden");
-}
-function closeModal() {
-  $("modal").classList.add("hidden");
-}
+// ★ 注意：openModal / closeModal 已迁移到 main.js，不再在此处定义
 
 // ===== 居中告警（页面中部弹窗样式提示） =====
 function showAlert(msg) {

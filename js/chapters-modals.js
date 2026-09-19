@@ -7,53 +7,119 @@
  *   - chapters.js : addChapter, renderChapterList
  *   - words.js    : addWord, renderWords
  *   - main.js     : openModal, closeModal
- *   - core.js     : $, toast, esc
+ *   - core.js     : $, toast, esc, custom-select 相关
  * =================================================================== */
+
+/* ===== 辅助：生成报词方式的 custom-select HTML ===== */
+function _dictLangSelectHtml(id, currentValue) {
+  const v = currentValue === 1 ? "1" : "0";
+  const labelText = v === "1" ? "汉语" : "English";
+  return (
+    '<div class="custom-select" id="' +
+    id +
+    '" data-value="' +
+    v +
+    '">' +
+    '<button type="button" class="custom-select-btn" onclick="toggleCustomSelect(\'' +
+    id +
+    "')\">" +
+    '<span class="custom-select-label">' +
+    labelText +
+    "</span>" +
+    '<span class="custom-select-arrow">▾</span>' +
+    "</button>" +
+    '<div class="custom-select-panel hidden">' +
+    '<div class="custom-select-option' +
+    (v === "1" ? " selected" : "") +
+    '" data-value="1" onclick="pickCustomSelect(\'' +
+    id +
+    "','1')\">汉语</div>" +
+    '<div class="custom-select-option' +
+    (v === "0" ? " selected" : "") +
+    '" data-value="0" onclick="pickCustomSelect(\'' +
+    id +
+    "','0')\">English</div>" +
+    "</div>" +
+    "</div>"
+  );
+}
+
+/* ===== 辅助：生成"所属章节"的 custom-select HTML ===== */
+function _chapterSelectHtml(id, currentIndex) {
+  const cur = String(
+    typeof currentIndex === "number" && currentIndex >= 0 ? currentIndex : 0,
+  );
+  const optionsHtml = data.chapters
+    .map((c, i) => {
+      const sel = String(i) === cur;
+      return (
+        '<div class="custom-select-option' +
+        (sel ? " selected" : "") +
+        '" data-value="' +
+        i +
+        '" onclick="pickCustomSelect(\'' +
+        id +
+        "','" +
+        i +
+        "')\">" +
+        esc(c.name) +
+        "</div>"
+      );
+    })
+    .join("");
+
+  const curName = data.chapters[currentIndex]
+    ? data.chapters[currentIndex].name
+    : "请选择章节";
+
+  return (
+    '<div class="custom-select" id="' +
+    id +
+    '" data-value="' +
+    cur +
+    '">' +
+    '<button type="button" class="custom-select-btn" onclick="toggleCustomSelect(\'' +
+    id +
+    "')\">" +
+    '<span class="custom-select-label">' +
+    esc(curName) +
+    "</span>" +
+    '<span class="custom-select-arrow">▾</span>' +
+    "</button>" +
+    '<div class="custom-select-panel hidden">' +
+    optionsHtml +
+    "</div>" +
+    "</div>"
+  );
+}
 
 // ===== 统一新增弹窗：上段新增章节、下段新增单词 =====
 function openAddModal() {
-  const chOptions = data.chapters
-    .map(
-      (c, i) =>
-        '<option value="' +
-        i +
-        '"' +
-        (i === currentChapter ? " selected" : "") +
-        ">" +
-        esc(c.name) +
-        "</option>",
-    )
-    .join("");
+  const currentIdx =
+    typeof currentChapter === "number" && currentChapter >= 0
+      ? currentChapter
+      : 0;
   openModal(
     "新增",
     '<div class="add-block">' +
       '<div class="add-title">📂 新增章节</div>' +
-      '<div class="add-inline">' +
+      // 输入框独占一行
       '<input id="addChapterName" class="input" placeholder="输入章节名称">' +
-      '<button class="primary" onclick="addChapterFromModal()">添加</button>' +
-      "</div>" +
       "<label>报词方式</label>" +
-      '<select id="addChapterLang">' +
-      '<option value="0"' +
-      (getDefaultDictLang() === 1 ? "" : " selected") +
-      ">English</option>" +
-      '<option value="1"' +
-      (getDefaultDictLang() === 1 ? " selected" : "") +
-      ">汉语</option>" +
-      "</select>" +
+      _dictLangSelectHtml("addChapterLang", getDefaultDictLang()) +
+      // ★ 添加按钮移到报词方式下方，全宽
+      '<button class="primary" style="width:100%;margin-top:8px" onclick="addChapterFromModal()">保存</button>' +
       "</div>" +
       '<div class="add-divider"></div>' +
       '<div class="add-block">' +
       '<div class="add-title">📝 新增单词</div>' +
       "<label>所属章节</label>" +
-      '<select id="addWordChapter">' +
-      chOptions +
-      "</select>" +
-      "<label>单词/词语</label>" +
-      '<input id="addWordText" class="input" placeholder="单词/词语">' +
-      "<label>中文意思（英语单词填，可留空）</label>" +
-      '<input id="addWordMeaning" class="input" placeholder="中文意思">' +
-      '<button class="primary" style="width:100%;margin-top:2px" onclick="addWordFromModal()">添加单词</button>' +
+      _chapterSelectHtml("addWordChapter", currentIdx) +
+      "<label>单词</label>" +
+      '<input id="addWordText" class="input" placeholder="单词">' +
+      "<label>释义</label>" +
+      '<input id="addWordMeaning" class="input" placeholder="释义">' +
+      '<button class="primary" style="width:100%;margin-top:8px" onclick="addWordFromModal()">保存</button>' +
       "</div>",
   );
   const t = $("addChapterName");
@@ -61,30 +127,39 @@ function openAddModal() {
 }
 
 function refreshAddWordSelect() {
-  const sel = $("addWordChapter");
-  if (!sel) return;
-  const chOptions = data.chapters
-    .map(
-      (c, i) =>
-        '<option value="' +
+  // 新增章节后，所属章节下拉可能需要更新
+  const el = $("addWordChapter");
+  if (!el) return;
+  const currentIdx =
+    typeof currentChapter === "number" && currentChapter >= 0
+      ? currentChapter
+      : 0;
+  const wrap = el.closest(".custom-select") || el;
+  const optionsHtml = data.chapters
+    .map((c, i) => {
+      const sel = String(i) === String(currentIdx);
+      return (
+        '<div class="custom-select-option' +
+        (sel ? " selected" : "") +
+        '" data-value="' +
         i +
-        '"' +
-        (i === currentChapter ? " selected" : "") +
-        ">" +
+        "\" onclick=\"pickCustomSelect('addWordChapter','" +
+        i +
+        "')\">" +
         esc(c.name) +
-        "</option>",
-    )
+        "</div>"
+      );
+    })
     .join("");
-  sel.innerHTML = chOptions;
+  const panel = el.querySelector(".custom-select-panel");
+  if (panel) panel.innerHTML = optionsHtml;
+  setCustomSelectValue("addWordChapter", String(currentIdx));
 }
 
 function addChapterFromModal() {
   const inp = $("addChapterName");
-  const langEl = $("addChapterLang");
-  addChapter(
-    inp ? inp.value : "",
-    langEl ? parseInt(langEl.value, 10) : getDefaultDictLang(),
-  );
+  const langVal = getCustomSelectValue("addChapterLang", "0");
+  addChapter(inp ? inp.value : "", langVal === "1" ? 1 : 0);
   if (inp && inp.value.trim()) inp.value = "";
   refreshAddWordSelect();
   if (inp) inp.focus();
@@ -93,8 +168,9 @@ function addChapterFromModal() {
 function addWordFromModal() {
   const text = $("addWordText") ? $("addWordText").value : "";
   const meaning = $("addWordMeaning") ? $("addWordMeaning").value : "";
-  const sel = $("addWordChapter");
-  addWord(text, meaning, sel ? parseInt(sel.value, 10) : NaN);
+  const ciStr = getCustomSelectValue("addWordChapter", "0");
+  const ci = parseInt(ciStr, 10);
+  addWord(text, meaning, Number.isNaN(ci) ? NaN : ci);
   const t = $("addWordText"),
     m = $("addWordMeaning");
   if (t) t.value = "";
@@ -106,7 +182,7 @@ function addWordFromModal() {
 let cloudDictLang = null;
 function loadCloudDictLang() {
   if (cloudDictLang !== null) return Promise.resolve(cloudDictLang);
-  return fetch("data.json?_=" + Date.now())
+  return fetch(getDataUrl())
     .then((r) => {
       if (!r.ok) throw new Error("fetch");
       return r.json();
@@ -114,7 +190,7 @@ function loadCloudDictLang() {
     .then((obj) => {
       const m = new Map();
       (obj.chapters || []).forEach((ch) => {
-        if (typeof ch.dictLang === "number") m.set(ch.name, ch.dictLang);
+        if (ch.id && typeof ch.dictLang === "number") m.set(ch.id, ch.dictLang);
       });
       cloudDictLang = m;
       return m;
@@ -131,8 +207,9 @@ function renameChapter(ci) {
   if (!ch) return;
   const localDl =
     typeof ch.dictLang === "number" ? ch.dictLang : getDefaultDictLang();
+
   loadCloudDictLang().then((m) => {
-    const dl = m.has(ch.name) ? m.get(ch.name) : localDl;
+    const dl = ch._id && m.has(ch._id) ? m.get(ch._id) : localDl;
     openModal(
       "修改章节",
       "<label>章节名称</label>" +
@@ -140,14 +217,7 @@ function renameChapter(ci) {
         esc(ch.name) +
         '" placeholder="章节名称">' +
         "<label>报词方式</label>" +
-        '<select id="mLang">' +
-        '<option value="0"' +
-        (dl === 1 ? "" : " selected") +
-        ">English</option>" +
-        '<option value="1"' +
-        (dl === 1 ? " selected" : "") +
-        ">汉语</option>" +
-        "</select>" +
+        _dictLangSelectHtml("mLang", dl) +
         '<div class="row"><button onclick="closeModal()">取消</button>' +
         '<button class="primary" onclick="doRenameChapter(' +
         ci +
@@ -172,10 +242,10 @@ function doRenameChapter(ci) {
     return;
   }
 
-  const ml = $("mLang");
-  if (ml) ch.dictLang = ml.value === "1" ? 1 : 0;
+  // ★ 从 custom-select 读值
+  const langVal = getCustomSelectValue("mLang", "0");
+  ch.dictLang = langVal === "1" ? 1 : 0;
 
-  // 同步：如果旧名在可见集合里，换成新名
   if (listVisibleSet.has(oldName)) {
     listVisibleSet.delete(oldName);
     listVisibleSet.add(newName);

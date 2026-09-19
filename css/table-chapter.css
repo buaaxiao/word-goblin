@@ -1,6 +1,6 @@
 /* ===================================================================
  * chapter-table.css — 章节表
- *   6 槽 grid：手柄 | 复选框 | 章节名 | 单词数 | 编辑 | 删除
+ *   单行布局：手柄 | 复选框 | 章节名 | 单词数 | 编辑 | 删除
  * =================================================================== */
 
 /* =================================================================
@@ -11,7 +11,11 @@
   align-items: center;
   column-gap: 8px;
   grid-template-columns:
-    var(--col-handle) 20px minmax(0, 1fr) 72px var(--col-action)
+    var(--col-handle)
+    18px
+    minmax(110px, 1fr)
+    72px
+    var(--col-action)
     var(--col-action);
   padding: 6px 10px;
   margin-bottom: 4px;
@@ -32,8 +36,8 @@
 }
 
 .chapter-table-header input[type="checkbox"] {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   margin: 0;
   accent-color: var(--primary);
   cursor: pointer;
@@ -59,14 +63,18 @@
 }
 
 /* =================================================================
- * 章节行（拖拽、悬停、拖拽指示已在 table-base.css 通用）
+ * 章节行
  * ================================================================= */
 .chapter-item {
   display: grid;
   align-items: center;
   column-gap: 8px;
   grid-template-columns:
-    var(--col-handle) 20px minmax(0, 1fr) 72px var(--col-action)
+    var(--col-handle)
+    18px
+    minmax(110px, 1fr)
+    72px
+    var(--col-action)
     var(--col-action);
   padding: 12px 10px;
 }
@@ -81,7 +89,7 @@
  * ================================================================= */
 .chapter-item .name {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 16px;
   color: var(--text);
   cursor: pointer;
   padding: 2px 4px;
@@ -90,6 +98,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 
 .chapter-item .name:hover {
@@ -111,8 +120,8 @@
 }
 
 .chapter-item input[type="checkbox"] {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   accent-color: var(--primary);
   cursor: pointer;
   margin: 0;

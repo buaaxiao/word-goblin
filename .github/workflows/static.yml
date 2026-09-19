@@ -6,7 +6,7 @@ on:
   push:
     branches: ["master"]
     paths:
-      - 'data.json'
+      - 'data/data.json'
       - 'index.html'
       - 'js/**'
       - 'css/**'

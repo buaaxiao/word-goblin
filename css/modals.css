@@ -358,8 +358,6 @@
   z-index: 100;
   padding: 20px;
   animation: fadeIn 0.2s ease;
-
-  /* 新增：避免点击面板本身时把事件冒泡到遮罩层 */
   overscroll-behavior: contain;
 }
 
@@ -367,11 +365,16 @@
   z-index: 300;
 }
 
-/* 通用确认框置顶 */
-
-/* 打开时锁定 body 滚动 */
+/* ★ 打开弹窗时锁 body 滚动
+ *   不用 overflow: hidden（会导致原生 <select> 展开浮层坐标错位）
+ *   改用 position: fixed + JS 设置 top，保持滚动位置
+ */
 body.modal-open {
-  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  left: 0;
+  right: 0;
+  /* top 由 JS 设置 */
 }
 
 @keyframes fadeIn {
@@ -729,4 +732,37 @@ body.dark .result-grid {
 
 body.dark .result-wrong-item {
   background: #232f42;
+}
+
+/* =================================================================
+ * 弹窗内的原生 select 统一视觉（可选）
+ * ================================================================= */
+.modal-box select {
+  width: 100%;
+  padding: 10px 32px 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--card);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='%2394a3b8' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
+}
+
+.modal-box select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+body.dark .modal-box select {
+  background-color: #1f2a3c;
+  border-color: var(--border-strong);
+  color: var(--text);
 }

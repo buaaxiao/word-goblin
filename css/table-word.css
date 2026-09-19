@@ -1,6 +1,6 @@
 /* ===================================================================
  * word-table.css — 单词表
- *   9 槽 grid：手柄 | 单词 | 对 | 最后对 | 错 | 最后错 | 均分 | 编辑 | 删除
+ *   单行布局：手柄 | 单词 | 对 | 最后对 | 错 | 最后错 | 均分 | 编辑 | 删除
  * =================================================================== */
 
 /* =================================================================
@@ -11,10 +11,15 @@
   align-items: center;
   column-gap: var(--table-gap);
   grid-template-columns:
-    var(--col-handle) minmax(0, 1fr) var(--col-num) var(--col-date)
-    var(--col-num) var(--col-date) var(--col-score) var(--col-action) var(
-      --col-action
-    );
+    var(--col-handle)
+    minmax(90px, 1fr)
+    var(--col-num)
+    var(--col-date)
+    var(--col-num)
+    var(--col-date)
+    var(--col-score)
+    var(--col-action)
+    var(--col-action);
   padding: 6px 8px;
   margin: 0 0 4px;
   height: 32px;
@@ -45,17 +50,22 @@
 }
 
 /* =================================================================
- * 单词行（拖拽、悬停、拖拽指示已在 table-base.css 通用）
+ * 单词行
  * ================================================================= */
 .word-item {
   display: grid;
   align-items: center;
   column-gap: var(--table-gap);
   grid-template-columns:
-    var(--col-handle) minmax(0, 1fr) var(--col-num) var(--col-date)
-    var(--col-num) var(--col-date) var(--col-score) var(--col-action) var(
-      --col-action
-    );
+    var(--col-handle)
+    minmax(90px, 1fr)
+    var(--col-num)
+    var(--col-date)
+    var(--col-num)
+    var(--col-date)
+    var(--col-score)
+    var(--col-action)
+    var(--col-action);
   padding: 12px 8px;
 }
 
@@ -78,11 +88,12 @@
 }
 
 .wtext {
-  font-weight: 700;
-  font-size: 17px;
+  font-weight: 600;
+  font-size: 16px;
   color: var(--text);
   letter-spacing: 0.2px;
   cursor: pointer;
+  min-width: 0;
 }
 
 .wtext:hover {
@@ -96,6 +107,7 @@
   padding: 2px 10px;
   border-radius: 12px;
   font-weight: 500;
+  min-width: 0;
 }
 
 /* =================================================================
@@ -167,15 +179,20 @@
 }
 
 /* =================================================================
- * 查看模式：9 列（与编辑模式一致，手柄/操作灰显）
+ * 查看模式：9 列（与编辑模式一致，仅手柄/操作灰显）
  * ================================================================= */
 #wordBody.list-view .word-table-header,
 #wordBody.list-view .word-item {
   grid-template-columns:
-    var(--col-handle) minmax(0, 1fr) var(--col-num) var(--col-date)
-    var(--col-num) var(--col-date) var(--col-score) var(--col-action) var(
-      --col-action
-    );
+    var(--col-handle)
+    minmax(90px, 1fr)
+    var(--col-num)
+    var(--col-date)
+    var(--col-num)
+    var(--col-date)
+    var(--col-score)
+    var(--col-action)
+    var(--col-action);
 }
 
 /* =================================================================
@@ -184,8 +201,14 @@
 #wordBody.multi-ch .word-table-header,
 #wordBody.multi-ch .word-item {
   grid-template-columns:
-    minmax(0, 1fr) var(--col-num) var(--col-date) var(--col-num)
-    var(--col-date) var(--col-score) var(--col-action) var(--col-action);
+    minmax(90px, 1fr)
+    var(--col-num)
+    var(--col-date)
+    var(--col-num)
+    var(--col-date)
+    var(--col-score)
+    var(--col-action)
+    var(--col-action);
 }
 
 #wordBody.multi-ch .word-table-header .th-handle-spacer {
@@ -233,10 +256,10 @@
 
 /* =================================================================
  * 单词列表标题：单行显示，超出省略
- *   - min-width: 0 让 flex item 能收缩（否则被内容撑开，无法截断）
- *   - overflow + text-overflow + white-space 三件套实现「…」
  * ================================================================= */
 #wordChapterTitle {
+  font-size: 16px;
+  font-weight: 600;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

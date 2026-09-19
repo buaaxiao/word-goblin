@@ -32,13 +32,12 @@
   --highlight: #fff3a3;
   --highlight-text: #7c4a03;
   /* 单词表格列宽 */
-  --col-handle: 34px;
-  --col-num: 48px;
-  --col-date: 100px;
-  --col-score: 56px;
-  --col-actions: 72px;
-  --col-action: 36px; /* 新增：单个按钮列宽 */
-  --table-gap: 8px;
+  --col-handle: 18px;
+  --col-num: 28px;
+  --col-date: 50px;
+  --col-score: 42px;
+  --col-action: 26px;
+  --table-gap: 2px;
 }
 
 body.dark {

@@ -18,16 +18,42 @@ function injectPartials() {
 }
 
 // ===================================================================
-// 二、通用弹窗控制
+// 二、通用弹窗：#modal 的内容填充 + 打开/关闭（唯一业务封装）
 // ===================================================================
-function openModal(title, bodyHtml) {
-  const m = document.getElementById("modal");
+/**
+ * 给 #modalBody 填充内容（不负责显示弹窗）
+ * @param {string} title
+ * @param {string} bodyHtml
+ * @returns {boolean}
+ */
+function fillModalBody(title, bodyHtml) {
   const b = document.getElementById("modalBody");
-  if (!m || !b) return;
-  b.innerHTML = "<h2>" + title + "</h2>" + bodyHtml;
-  openModalEl(m);
+  if (!b) return false;
+  b.innerHTML =
+    '<div class="modal-head">' +
+    "<h2>" +
+    esc(title) +
+    '</h2><button class="modal-close" onclick="closeModal()" title="关闭">✕</button></div>' +
+    bodyHtml;
+  return true;
 }
 
+/**
+ * 打开通用弹窗 #modal（填内容 + 显示）
+ * @param {string} title
+ * @param {string} bodyHtml
+ * @param {Function} [onOpened] 打开后回调（可选）
+ */
+function openModal(title, bodyHtml, onOpened) {
+  const m = document.getElementById("modal");
+  if (!m) return;
+  if (!fillModalBody(title, bodyHtml)) return;
+  openModalEl(m, onOpened);
+}
+
+/**
+ * 关闭通用弹窗 #modal
+ */
 function closeModal() {
   const m = document.getElementById("modal");
   const b = document.getElementById("modalBody");
@@ -36,9 +62,12 @@ function closeModal() {
 }
 
 // ===================================================================
-// 三、真正的 modal 打开/关闭
+// 三、底层：任意 .modal 元素的显示/隐藏
+//   - 焦点栈 + 锁滚动（position: fixed 版）+ 自动聚焦
+//   - 用 position: fixed 锁滚动，避免原生 <select> 展开浮层坐标错位
 // ===================================================================
 const __modalFocusStack = [];
+let __bodyScrollY = 0;
 
 function getFocusable(root) {
   return Array.from(
@@ -48,29 +77,55 @@ function getFocusable(root) {
   ).filter((el) => el.offsetParent !== null);
 }
 
-function openModalEl(el) {
+/**
+ * 显示弹窗元素
+ * @param {HTMLElement} el
+ * @param {Function} [onOpened] 焦点已聚焦后回调（可选）
+ */
+function openModalEl(el, onOpened) {
   if (!el) return;
   __modalFocusStack.push(document.activeElement);
+
+  // ★ 锁滚动：只在"第一个弹窗打开"时记录 scrollY，并给 body 加 modal-open
+  if (!document.body.classList.contains("modal-open")) {
+    __bodyScrollY = window.scrollY || window.pageYOffset || 0;
+    document.body.style.top = -__bodyScrollY + "px";
+    document.body.classList.add("modal-open");
+  }
+
   el.classList.remove("hidden");
-  document.body.classList.add("modal-open");
 
   const focusables = getFocusable(el);
   const first =
     focusables.find((x) => x.classList.contains("primary")) || focusables[0];
-  if (first)
-    setTimeout(() => {
+
+  setTimeout(function () {
+    if (first) {
       try {
         first.focus();
       } catch (e) {}
-    }, 0);
+    }
+    if (typeof onOpened === "function") {
+      try {
+        onOpened(el);
+      } catch (e) {
+        console.error("openModalEl onOpened 回调失败：", e);
+      }
+    }
+  }, 0);
 }
 
 function closeModalEl(el) {
   if (!el) return;
   el.classList.add("hidden");
+
+  // ★ 所有弹窗都关闭后：解锁 body 滚动，并恢复滚动位置
   if (!document.querySelector(".modal:not(.hidden)")) {
     document.body.classList.remove("modal-open");
+    document.body.style.top = "";
+    window.scrollTo(0, __bodyScrollY);
   }
+
   const prev = __modalFocusStack.pop();
   if (prev && document.contains(prev)) {
     try {
@@ -110,6 +165,10 @@ function openSettings() {
   if (!m.innerHTML.trim() && window.__PARTIAL_settingsModal) {
     m.innerHTML = window.__PARTIAL_settingsModal;
   }
+  // 同步主题单选按钮（原来在 core.js 的 openSettings 里）
+  if (typeof syncThemeModeRadios === "function") {
+    syncThemeModeRadios(getCurrentThemeMode());
+  }
   openModalEl(m);
 }
 
@@ -129,21 +188,22 @@ function openStats() {
   if (!m.innerHTML.trim() && window.__PARTIAL_statsModal) {
     m.innerHTML = window.__PARTIAL_statsModal;
   }
-  openModalEl(m);
-  if (typeof renderChart === "function") {
-    try {
-      renderChart();
-    } catch (e) {
-      console.error("renderChart 失败：", e);
+  openModalEl(m, function () {
+    if (typeof renderChart === "function") {
+      try {
+        renderChart();
+      } catch (e) {
+        console.error("renderChart 失败：", e);
+      }
     }
-  }
-  if (typeof renderHistory === "function") {
-    try {
-      renderHistory();
-    } catch (e) {
-      console.error("renderHistory 失败：", e);
+    if (typeof renderHistory === "function") {
+      try {
+        renderHistory();
+      } catch (e) {
+        console.error("renderHistory 失败：", e);
+      }
     }
-  }
+  });
 }
 
 function closeStats() {
@@ -154,32 +214,50 @@ function closeStats() {
 // 七、全局事件绑定
 // ===================================================================
 function bindGlobalEvents() {
+  // 遮罩点击关闭
   document.querySelectorAll(".modal").forEach((modal) => {
     modal.addEventListener("click", function (e) {
       if (e.target !== modal) return;
 
-      if (modal.id === "modal") {
-        closeModal();
+      // ★ 默写弹窗：走 closeDict()，触发停止播报 + 确认框
+      if (modal.id === "dictModal" && typeof closeDict === "function") {
+        closeDict();
         return;
       }
-      if (modal.id === "settingsModal") closeSettings();
-      else if (modal.id === "statsModal") closeStats();
-      else if (modal.id === "dictModal") closeDict();
-      else modal.classList.add("hidden");
+
+      closeModalEl(modal);
     });
   });
 
+  // Esc 关闭最上层弹窗
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Escape") return;
+
+    // ★ 优先：章节搜索下拉面板打开时，先关它
+    const comboPanel = document.getElementById("chapterComboPanel");
+    if (comboPanel && !comboPanel.classList.contains("hidden")) {
+      if (typeof closeChapterCombo === "function") {
+        closeChapterCombo();
+      } else {
+        comboPanel.classList.add("hidden");
+      }
+      e.preventDefault();
+      return;
+    }
+
     const top = getTopModal();
     if (!top) return;
-    if (top.id === "modal") closeModal();
-    else if (top.id === "settingsModal") closeSettings();
-    else if (top.id === "statsModal") closeStats();
-    else if (top.id === "dictModal") closeDict();
-    else top.classList.add("hidden");
+
+    // ★ 默写弹窗：走 closeDict()
+    if (top.id === "dictModal" && typeof closeDict === "function") {
+      closeDict();
+      return;
+    }
+
+    closeModalEl(top);
   });
 
+  // Tab 焦点循环
   document.addEventListener("keydown", function (e) {
     if (e.key !== "Tab") return;
     const top = getTopModal();
@@ -204,6 +282,7 @@ function bindGlobalEvents() {
     }
   });
 
+  // 数据操作下拉：点击外部收起
   document.addEventListener("click", function (e) {
     const ops = document.querySelector(".data-ops");
     if (!ops) return;
@@ -241,7 +320,8 @@ async function initApp() {
     if (typeof loadCollapseState === "function") loadCollapseState();
     if (typeof loadLangSelSetting === "function") loadLangSelSetting();
 
-    if (typeof applyCollapseState === "function") applyCollapseState();
+    // ★ 首次加载：0 词则折叠单词区（只在这里判断一次）
+    if (typeof applyCollapseState === "function") applyCollapseState(true);
 
     // 3. listVisibleSet
     if (typeof initListVisibleSet === "function") initListVisibleSet();

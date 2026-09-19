@@ -34,8 +34,8 @@ window.__PARTIAL_settingsModal = `
     <div class="row">
       <label>报词方式</label>
       <select id="langSel" onchange="saveLangSelSetting()">
-        <option value="0">English</option>
         <option value="1" selected>汉语</option>
+        <option value="0">English</option>
       </select>
     </div>
     <div class="row">

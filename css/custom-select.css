@@ -1,0 +1,130 @@
+/* ===================================================================
+ * css/custom-select.css — 自定义下拉组件
+ *   浮层用 absolute 定位在编辑框正下方，永不漂移
+ *
+ *   用法：
+ *     <div class="custom-select" id="xxx" data-value="0">
+ *       <button type="button" class="custom-select-btn" onclick="toggleCustomSelect('xxx')">
+ *         <span class="custom-select-label">English</span>
+ *         <span class="custom-select-arrow">▾</span>
+ *       </button>
+ *       <div class="custom-select-panel hidden">
+ *         <div class="custom-select-option" data-value="0" onclick="pickCustomSelect('xxx','0')">English</div>
+ *         <div class="custom-select-option" data-value="1" onclick="pickCustomSelect('xxx','1')">汉语</div>
+ *       </div>
+ *     </div>
+ * =================================================================== */
+
+.custom-select {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.custom-select-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.custom-select-btn:hover {
+  border-color: var(--primary);
+}
+
+.custom-select.open .custom-select-btn {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.custom-select-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.custom-select-arrow {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--muted);
+  margin-left: 8px;
+  transition: transform 0.15s;
+}
+
+.custom-select.open .custom-select-arrow {
+  transform: rotate(180deg);
+}
+
+/* 浮层：absolute 相对 .custom-select，贴在按钮下方 */
+.custom-select-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.custom-select-panel.hidden {
+  display: none;
+}
+
+.custom-select-option {
+  padding: 9px 10px;
+  font-size: 14px;
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.12s;
+}
+
+.custom-select-option:hover {
+  background: var(--card-soft);
+}
+
+.custom-select-option.selected {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* 深色模式 */
+body.dark .custom-select-btn {
+  background: #1f2a3c;
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+body.dark .custom-select-panel {
+  background: #1f2a3c;
+  border-color: var(--border-strong);
+}
+
+body.dark .custom-select-option:hover {
+  background: #263449;
+}

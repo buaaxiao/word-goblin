@@ -22,6 +22,8 @@ function openDB() {
         const store = db.createObjectStore("chapters", { keyPath: "id" });
         store.createIndex("order", "order", { unique: false });
         store.createIndex("name", "name", { unique: false });
+        // ★ 新增：shareName 索引（用于"本地-共享"稳定匹配）
+        store.createIndex("shareName", "shareName", { unique: false });
       }
       if (!db.objectStoreNames.contains("words")) {
         const store = db.createObjectStore("words", { keyPath: "id" });
@@ -146,6 +148,9 @@ async function dbGetAllHistory() {
 async function dbPutHistory(h) {
   return dbTx("history", "readwrite", (s) => s.put(h));
 }
+async function dbDeleteHistory(id) {
+  return dbTx("history", "readwrite", (s) => s.delete(id));
+}
 async function dbClearHistory() {
   return dbTx("history", "readwrite", (s) => s.clear());
 }
@@ -155,4 +160,8 @@ async function dbClearAll() {
   await dbClearChapters();
   await dbClearWords();
   await dbClearHistory();
+}
+
+async function dbDeleteHistory(id) {
+  return dbTx("history", "readwrite", (s) => s.delete(id));
 }

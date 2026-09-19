@@ -173,8 +173,8 @@
 }
 
 #chapterCombo .combo-item input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
   accent-color: var(--primary);
   cursor: pointer;

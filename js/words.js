@@ -263,9 +263,7 @@ function renderWords() {
 
   // ★ 标题：单行显示，超出省略；悬停显示完整文字
   if (titleEl) {
-    const fullTitle = multi
-      ? "选中" + selectedIdx.length + "章"
-      : "「" + data.chapters[currentChapter].name + "」的单词";
+    const fullTitle = "选中" + selectedIdx.length + "章";
     titleEl.textContent = fullTitle;
     titleEl.title = fullTitle;
   }
@@ -373,6 +371,12 @@ function renderWords() {
       '</span> / <span style="color:var(--danger);">' +
       (w.wrongCount || 0) +
       "</span></span></div>" +
+      '<div class="detail-row"><span class="detail-label">最后正确时间</span><span class="detail-value">' +
+      (w.lastCorrectDate || "—") +
+      "</span></div>" +
+      '<div class="detail-row"><span class="detail-label">最后错误时间</span><span class="detail-value">' +
+      (w.lastErrorDate || "—") +
+      "</span></div>" +
       '<div class="detail-row"><span class="detail-label">得分记录</span><span class="detail-value">' +
       (w.scoreCount || 0) +
       " 次，均分 " +
@@ -507,6 +511,7 @@ function addWord(text, meaning, ci) {
     return;
   }
   data.chapters[ci].words.push({
+    _id: genId("w_"), // ★ 新增
     text,
     meaning,
     wrongCount: 0,
@@ -560,10 +565,10 @@ function editWord(i) {
   const w = it.w;
   openModal(
     "修改单词",
-    '<label>单词/词语</label><input id="mText" class="input" value="' +
+    '<label>单词</label><input id="mText" class="input" value="' +
       esc(w.text) +
       '">' +
-      '<label>中文意思（英语单词填，可留空）</label><input id="mMeaning" class="input" value="' +
+      '<label>释义</label><input id="mMeaning" class="input" value="' +
       esc(w.meaning) +
       '">' +
       '<div class="row"><button onclick="closeModal()">取消</button>' +

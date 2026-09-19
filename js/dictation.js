@@ -159,7 +159,13 @@ const dict = {
   currentRepeat: 0,
 };
 
+// ===== 计时器 =====
+// timerInterval：setInterval 句柄
+// __elapsedBeforePause：暂停前累计的秒数（暂停时冻结）
+// 恢复时通过顺延 dict.startTime 让 Date.now()-startTime 继续从这个值算起，
+// 这样 elapsedSec 里就不会把暂停时长算进去。
 let timerInterval = null;
+let __elapsedBeforePause = 0;
 
 function shuffle(a) {
   for (let i = a.length - 1; i > 0; i--) {
@@ -314,6 +320,10 @@ function startDictation() {
   dict.skipResolve = null;
   dict.prevResolve = null;
   dict.replayResolve = null;
+
+  // ★ 重置暂停累计
+  __elapsedBeforePause = 0;
+
   showPhase("playing");
   startTimer();
   runDictation();
@@ -514,10 +524,11 @@ function updateNavButtons(i, total) {
   $("replayBtn").disabled = false;
 }
 function startTimer() {
+  if (timerInterval) clearInterval(timerInterval);
   timerInterval = setInterval(() => {
-    $("timerText").textContent =
-      "本次用时: " +
-      formatDur(Math.floor((Date.now() - dict.startTime) / 1000));
+    const elapsed =
+      __elapsedBeforePause + Math.floor((Date.now() - dict.startTime) / 1000);
+    $("timerText").textContent = "本次用时: " + formatDur(elapsed);
   }, 1000);
 }
 function stopTimer() {
@@ -529,18 +540,33 @@ function stopTimer() {
 
 function pauseResume() {
   if (dict.phase !== "playing") return;
+
   if (dict.paused) {
+    // ===== 继续 =====
     dict.paused = false;
     if (dict.resumeResolve) {
       dict.resumeResolve();
       dict.resumeResolve = null;
     }
+
+    // ★ 恢复计时：把 startTime 顺延，抵消暂停时长
+    dict.startTime = Date.now() - __elapsedBeforePause * 1000;
+    startTimer();
+
     $("pauseBtn").textContent = "⏸ 暂停";
   } else {
+    // ===== 暂停 =====
     dict.paused = true;
     try {
       speechSynthesis.cancel();
     } catch (e) {}
+
+    // ★ 暂停计时：记录已累计秒数，然后停表
+    __elapsedBeforePause = Math.floor((Date.now() - dict.startTime) / 1000);
+    stopTimer();
+    // 立刻刷新一次显示，保证数字准确
+    $("timerText").textContent = "本次用时: " + formatDur(__elapsedBeforePause);
+
     $("pauseBtn").textContent = "▶ 继续";
   }
 }
@@ -567,6 +593,7 @@ function stopDictation() {
     speechSynthesis.cancel();
   } catch (e) {}
   stopTimer();
+  __elapsedBeforePause = 0;
   showPhase("idle");
 }
 
@@ -607,49 +634,12 @@ function finishDictation() {
     dict.replayResolve = null;
   }
 
+  // ★ 重置暂停累计
+  __elapsedBeforePause = 0;
+
   // 更新大字并进入复习
   if (typeof setCurrentWord === "function") setCurrentWord("🎉 默写完成");
   enterReview();
-}
-
-// 关闭默写弹窗：
-//   - 正在播报 → 弹确认框
-//       确定 → 停止播报并进入复习阶段，不关闭弹窗
-//       取消 → 保持默写继续
-//   - 未在播报（idle / review）→ 直接关闭
-function closeDict() {
-  const m = $("dictModal");
-  if (!m) return;
-
-  if (dict.running) {
-    // 暂停 TTS，避免确认框打开期间还在读
-    try {
-      speechSynthesis.pause();
-    } catch (e) {}
-
-    confirmDialog(
-      "停止默写",
-      "默写仍在进行中，确定要停止吗？<br>" +
-        "停止后将进入「默写完成」，可以逐个标记错误。",
-      function () {
-        // 点「确定」：恢复语音后走 finishDictation（不关闭弹窗）
-        try {
-          speechSynthesis.resume();
-        } catch (e) {}
-        finishDictation();
-      },
-      function () {
-        // 点「取消」：恢复语音，保持默写继续
-        try {
-          speechSynthesis.resume();
-        } catch (e) {}
-      },
-    );
-    return;
-  }
-
-  // 未在播报（idle / review 阶段）：直接关闭
-  closeModalEl(m);
 }
 
 function nextWord() {

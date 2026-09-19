@@ -461,6 +461,7 @@ function addChapter(name, dictLang) {
     return;
   }
   data.chapters.push({
+    _id: genId("ch_"), // ★ 新增
     name: name,
     selected: false,
     words: [],

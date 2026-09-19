@@ -18,19 +18,37 @@ let comboActiveIndex = -1;
 function openChapterCombo() {
   const panel = $("chapterComboPanel");
   if (!panel) return;
+
+  // 已打开就不重复渲染（避免 focus 重复触发导致状态错乱）
+  const wasHidden = panel.classList.contains("hidden");
   comboActiveIndex = -1;
-  renderChapterComboPanel();
-  panel.classList.remove("hidden");
+  if (wasHidden) {
+    renderChapterComboPanel();
+    panel.classList.remove("hidden");
+  }
 
   if (!openChapterCombo._bound) {
     openChapterCombo._bound = true;
+
+    // 点击外部关闭
     document.addEventListener("click", function (e) {
       const wrap = $("chapterCombo");
       if (wrap && !wrap.contains(e.target)) closeChapterCombo();
     });
-    document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape") closeChapterCombo();
-    });
+
+    // ★ 新增：input 点击时也尝试打开面板（focus 的兜底）
+    //   场景：Esc 关闭面板后若 input 仍是 focus 状态，再点 input 不会触发
+    //   focus 事件，靠这个 click 监听重新打开。
+    const inp = $("chapterSearch");
+    if (inp) {
+      inp.addEventListener("click", function () {
+        openChapterCombo();
+      });
+    }
+
+    // ★ 不再注册全局 Esc 监听器：
+    //   Esc 关闭改由 onChapterSearchKeydown 处理（只在输入框有焦点时生效）
+    //   并由 main.js 的全局 Esc 处理兜底（优先关 combo）
   }
 }
 
@@ -180,6 +198,24 @@ function onChapterSearchKeydown(e) {
   const panel = $("chapterComboPanel");
   if (!panel) return;
 
+  // ★ Esc：关闭下拉面板（如果打开）
+  //   只在搜索框内有焦点时触发；stopPropagation 阻止冒泡到 main.js 全局 Esc
+  if (e.key === "Escape") {
+    if (!panel.classList.contains("hidden")) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeChapterCombo();
+
+      // ★ 关键修复：主动 blur 输入框
+      //   因为 preventDefault 阻止了浏览器默认的"Esc 自动 blur input"行为，
+      //   不主动 blur 的话 input 会保持 focus 状态，
+      //   下次点击 input 不会再触发 focus 事件，导致面板打不开。
+      const inp = $("chapterSearch");
+      if (inp && document.activeElement === inp) inp.blur();
+    }
+    return;
+  }
+
   if (panel.classList.contains("hidden")) {
     if (e.key === "ArrowDown") {
       openChapterCombo();
@@ -252,6 +288,10 @@ function clearChapterSearch(e) {
   const wrap = $("chapterCombo");
   if (wrap) wrap.classList.remove("has-text");
   closeChapterCombo();
+
+  // ★ 顺手 blur，保证下次点击 input 能再次触发 focus
+  if (inp && document.activeElement === inp) inp.blur();
+
   renderChapterList();
 }
 
