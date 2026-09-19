@@ -34,7 +34,7 @@ const SETTINGS_MODAL_HTML = `
           <button onclick="exportSettings()">📤 导出设置</button>
           <button onclick="importSettings()">📥 导入设置</button>
         </div>
-        <p class="hint-text">导出的 settings.json 包含：主题、报词方式、默写设置、列表折叠/模式。清缓存后可从该文件恢复。</p>
+        <p class="hint-text">导出系统设置、默写设置等配置信息。清缓存后可从该导出文件恢复。</p>
       </div>
     </div>
   </div>

@@ -47,6 +47,7 @@ function openModal(title, bodyHtml, onOpened) {
  * 关闭通用弹窗 #modal
  */
 function closeModal() {
+  console.trace("[closeModal] 被调用");
   const m = document.getElementById("modal");
   const b = document.getElementById("modalBody");
   if (m) closeModalEl(m);

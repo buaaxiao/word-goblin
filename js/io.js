@@ -19,7 +19,8 @@ function confirmExport() {
     body: "确定导出当前数据吗？",
     okTitle: "导出",
     onOk: function () {
-      doExport();
+      console.log("[导入] onOk 被调用，incoming =", incoming);
+      exportData();
     },
   });
 }
@@ -103,7 +104,7 @@ function importData() {
             "· 同名章节按单词去重合并",
           okTitle: "导入",
           onOk: function () {
-            doImportMerge(incoming);
+            return doImportMerge(incoming);
           },
         });
       } catch (err) {
@@ -125,6 +126,10 @@ function importData() {
 
 // 合并导入
 function doImportMerge(incoming) {
+  console.log(
+    "[导入] 开始",
+    incoming && incoming.chapters && incoming.chapters.length,
+  );
   try {
     const current = data.chapters || [];
     const byName = new Map();
@@ -132,12 +137,17 @@ function doImportMerge(incoming) {
 
     let addedCh = 0,
       addedWord = 0,
-      mergedWord = 0;
+      mergedWord = 0,
+      skippedWord = 0,
+      filledWord = 0;
+    const mergeDetail = [];
 
     incoming.chapters.forEach((ch) => {
       const name = (ch.name || "").trim();
       if (!name) return;
+
       if (!byName.has(name)) {
+        // ===== 新章节：直接追加 =====
         const newCh = {
           name: name,
           selected: false,
@@ -148,15 +158,66 @@ function doImportMerge(incoming) {
         addedCh++;
         addedWord += newCh.words.length;
       } else {
+        // ===== 同名章节：按 text 去重 + 补空字段 =====
         const target = byName.get(name);
         if (!Array.isArray(target.words)) target.words = [];
-        const wordSet = new Set(target.words.map((w) => (w.text || "").trim()));
+
+        // text → 本地词对象，便于 O(1) 查找
+        const wordMap = new Map();
+        target.words.forEach((w) => {
+          const t = (w.text || "").trim();
+          if (t) wordMap.set(t, w);
+        });
+
+        let chAdded = 0,
+          chSkipped = 0,
+          chFilled = 0;
+
         (ch.words || []).forEach((w) => {
           const t = (w.text || "").trim();
-          if (!t || wordSet.has(t)) return;
-          target.words.push(normalizeWord(w));
-          wordSet.add(t);
-          mergedWord++;
+          if (!t) return;
+
+          if (wordMap.has(t)) {
+            // ★ 重复：保留本地，只补本地为空、导入有值的"描述性"字段
+            const local = wordMap.get(t);
+            let filled = false;
+
+            if (!local.meaning && w.meaning) {
+              local.meaning = (w.meaning || "").trim();
+              filled = true;
+            }
+
+            // 如需补其他描述性字段，仿照上面继续加：
+            // if (!local.phonetic && w.phonetic) {
+            //   local.phonetic = (w.phonetic || "").trim();
+            //   filled = true;
+            // }
+
+            // ★ 统计字段一律不动：
+            // wrongCount / correctCount / lastErrorDate / lastCorrectDate
+            // scoreCount / scoreSum 全部保留本地
+
+            chSkipped++;
+            if (filled) chFilled++;
+            return;
+          }
+
+          // ===== 新词：normalizeWord 后追加 =====
+          const normalized = normalizeWord(w);
+          target.words.push(normalized);
+          wordMap.set(t, normalized);
+          chAdded++;
+        });
+
+        mergedWord += chAdded;
+        skippedWord += chSkipped;
+        filledWord += chFilled;
+
+        mergeDetail.push({
+          name,
+          added: chAdded,
+          skipped: chSkipped,
+          filled: chFilled,
         });
       }
     });
@@ -170,18 +231,62 @@ function doImportMerge(incoming) {
     renderWords();
     updateStats();
 
-    toast(
-      "导入完成：新增 " +
-        addedCh +
-        " 章 / " +
-        addedWord +
-        " 词，合并 " +
-        mergedWord +
-        " 词",
+    // ===== 结果反馈：始终弹窗 =====
+    const summary =
+      "✅ 导入完成" +
+      (addedCh ? "：新增 " + addedCh + " 章 · " + addedWord + " 词" : "") +
+      (mergedWord || skippedWord
+        ? (addedCh ? "；" : "：") +
+          "合并 " +
+          mergedWord +
+          " 词" +
+          (skippedWord ? " · 跳过 " + skippedWord + " 重复词" : "") +
+          (filledWord ? " · 补全 " + filledWord + " 个释义" : "")
+        : "");
+
+    let detailHtml = "<p style='margin:0 0 8px;'>" + esc(summary) + "</p>";
+
+    if (mergeDetail.length > 0) {
+      detailHtml +=
+        "<p style='margin:0 0 6px;color:var(--text-soft);font-size:13px;'>合并明细：</p>" +
+        "<ul style='margin:0 0 0 18px;padding:0;font-size:13px;color:var(--text-soft);line-height:1.7;'>" +
+        mergeDetail
+          .map((d) => {
+            const parts = [];
+            if (d.added) parts.push("新增 " + d.added + " 词");
+            if (d.skipped) parts.push("跳过 " + d.skipped + " 重复");
+            if (d.filled) parts.push("补全 " + d.filled + " 个释义");
+            if (!parts.length) parts.push("无变化");
+            return "<li>「" + esc(d.name) + "」" + parts.join(" · ") + "</li>";
+          })
+          .join("") +
+        "</ul>";
+    }
+
+    console.log("[导入] 准备弹窗", {
+      addedCh,
+      addedWord,
+      mergedWord,
+      skippedWord,
+      filledWord,
+      detailCount: mergeDetail.length,
+      summary,
+    });
+    openModal(
+      "导入结果",
+      detailHtml +
+        '<div class="row" style="justify-content:center;margin-top:16px;">' +
+        '<button class="primary" onclick="closeModal()">知道了</button>' +
+        "</div>",
     );
+    console.log("[导入] openModal 已调用");
+
+    return false;
   } catch (e) {
+    console.error("[导入] 异常：", e);
     console.error("导入失败：", e);
     toast("导入失败：" + (e && e.message ? e.message : e));
+    return false;
   }
 }
 

@@ -33,7 +33,7 @@ const DATA_URL = DATA_DIR + "/" + DATA_FILE;
  *   - 需要遍历时用：    SETTINGS_KEYS（由 KEYS 自动生成）
  *   - 单独定义时的短名：KEY_THEME = KEYS.THEME（方便书写）
  *
- *   加新键：只在 KEYS 里加一行 + （可选）加一行短名
+ *   加新键：只在 KEYS 里加一行 + （可选）加一行短名 + 一行中文标签
  * ================================================================= */
 const KEYS = Object.freeze({
   THEME: "wordDictation.theme.v1",
@@ -62,6 +62,20 @@ const KEY_CHAPTER_COLLAPSED = KEYS.CHAPTER_COLLAPSED;
 const KEY_WORD_COLLAPSED = KEYS.WORD_COLLAPSED;
 const KEY_CHAPTER_MODE = KEYS.CHAPTER_MODE;
 const KEY_WORD_MODE = KEYS.WORD_MODE;
+
+/* =================================================================
+ * 设置键 → 中文标签（导入 / 导出结果提示用）
+ *   与 KEYS 一一对应；改动 KEYS 时同步加一行
+ * ================================================================= */
+const SETTINGS_KEY_LABELS = Object.freeze({
+  [KEY_THEME]: "主题颜色模式",
+  [KEY_DICT_LANG]: "报词方式",
+  [KEY_DICTATION]: "默写设置",
+  [KEY_CHAPTER_COLLAPSED]: "章节折叠状态",
+  [KEY_WORD_COLLAPSED]: "单词折叠状态",
+  [KEY_CHAPTER_MODE]: "章节列表模式",
+  [KEY_WORD_MODE]: "单词列表模式",
+});
 
 /* =================================================================
  * 旧键（一次性迁移用，不属于 KEYS 清单）

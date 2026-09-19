@@ -99,7 +99,7 @@ function importSettings() {
             danger: true,
             okTitle: "导入",
             onOk: function () {
-              doApplyImportedSettings(obj);
+              return doApplyImportedSettings(obj);
             },
           });
         } else {
@@ -121,12 +121,18 @@ function importSettings() {
 
 function doApplyImportedSettings(obj) {
   try {
-    let count = 0;
+    const applied = [];
+    const skipped = [];
+
     for (const key of SETTINGS_KEYS) {
-      if (obj[key] === undefined) continue;
+      const label = SETTINGS_KEY_LABELS[key] || key;
+      if (obj[key] === undefined) {
+        skipped.push(label);
+        continue;
+      }
       applyStoredSetting(key, obj[key]);
       persistConfigKey(key);
-      count++;
+      applied.push(label);
     }
 
     // 应用 UI
@@ -137,10 +143,39 @@ function doApplyImportedSettings(obj) {
     if (typeof renderChapterList === "function") renderChapterList();
     if (typeof renderWords === "function") renderWords();
 
-    if (typeof toast === "function") toast("已导入 " + count + " 项设置");
+    // ===== 结果弹窗 =====
+    const summary = "✅ 已导入 " + applied.length + " 项设置";
+    let detailHtml = "<p style='margin:0 0 8px;'>" + esc(summary) + "</p>";
+
+    if (applied.length > 0) {
+      detailHtml +=
+        "<p style='margin:0 0 6px;color:var(--text-soft);font-size:13px;'>已应用：</p>" +
+        "<ul style='margin:0 0 0 18px;padding:0;font-size:13px;color:var(--text-soft);line-height:1.7;'>" +
+        applied.map((n) => "<li>" + esc(n) + "</li>").join("") +
+        "</ul>";
+    }
+
+    if (skipped.length > 0) {
+      detailHtml +=
+        "<p style='margin:8px 0 6px;color:var(--text-soft);font-size:13px;'>文件中未包含：</p>" +
+        "<ul style='margin:0 0 0 18px;padding:0;font-size:13px;color:var(--text-soft);line-height:1.7;'>" +
+        skipped.map((n) => "<li>" + esc(n) + "</li>").join("") +
+        "</ul>";
+    }
+
+    openModal(
+      "导入设置结果",
+      detailHtml +
+        '<div class="row" style="justify-content:center;margin-top:16px;">' +
+        '<button class="primary" onclick="closeModal()">知道了</button>' +
+        "</div>",
+    );
+
+    // ★ 阻止 _wireModal 里的 closeModal() 关掉刚打开的弹窗
+    return false;
   } catch (err) {
     console.error("应用导入设置失败：", err);
-    if (typeof toast === "function")
-      toast("应用导入设置失败：" + (err && err.message ? err.message : err));
+    toast("应用导入设置失败：" + (err && err.message ? err.message : err));
+    return false;
   }
 }
