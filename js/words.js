@@ -227,7 +227,10 @@ function renderWords() {
   // 折叠状态
   const wBody = $("wordBody");
   if (wBody) {
-    wBody.classList.toggle("collapsed", config.wordCollapsed && !wordSearchQuery);
+    wBody.classList.toggle(
+      "collapsed",
+      config.wordCollapsed && !wordSearchQuery,
+    );
   }
 
   const el = $("wordList");
@@ -346,8 +349,10 @@ function renderWords() {
     const w = it.w;
     const d = document.createElement("div");
     const viewMode = config.wordMode === "view";
+    const canDrag = !viewMode && !handleDisabled;
+
     d.className = "word-item" + (viewMode ? " view-mode" : "");
-    d.setAttribute("draggable", "false");
+    d.setAttribute("draggable", canDrag ? "true" : "false");
     d.dataset.index = i;
 
     const total = (w.wrongCount || 0) + (w.correctCount || 0);
