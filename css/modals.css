@@ -1030,3 +1030,60 @@ body.dark .dict-meta-v {
   min-width: 72px;
   flex-shrink: 0;
 }
+
+/* =================================================================
+ * 帮助弹窗
+ * ================================================================= */
+.help-box {
+  max-width: 520px;
+  min-height: 420px;
+}
+
+.help-pane {
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.help-pane .set-group {
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.help-pane .set-group:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.help-pane h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.help-pane ul {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13.5px;
+  line-height: 1.8;
+  color: var(--text-soft);
+}
+
+.help-pane ul li {
+  margin: 4px 0;
+}
+
+.help-pane b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.help-pane .danger-text {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+body.dark .help-pane ul {
+  color: var(--text-soft);
+}

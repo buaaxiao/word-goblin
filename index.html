@@ -34,11 +34,18 @@
       <div class="appbar-top">
         <h1>单词精灵</h1>
         <div class="appbar-actions">
-          <button class="appbar-btn" onclick="openStats()" title="统计">
+          <button
+            class="appbar-btn"
+            onclick="openStats()"
+            title="查看统计与历史"
+          >
             📊
           </button>
-          <button class="appbar-btn" onclick="openSettings()" title="设置">
+          <button class="appbar-btn" onclick="openSettings()" title="打开设置">
             ⚙️
+          </button>
+          <button class="appbar-btn" onclick="openHelp()" title="使用帮助">
+            ❓
           </button>
           <span class="theme-tag" id="themeTag" title="当前主题颜色模式">
             <span class="theme-icon" id="themeIcon">🌙</span>
@@ -316,11 +323,13 @@
     <div id="settingsModal" class="modal hidden"></div>
     <div id="statsModal" class="modal hidden"></div>
     <div id="dictModal" class="modal hidden"></div>
+    <div id="helpModal" class="modal hidden"></div>
 
     <!-- partials：提供 window.__PARTIAL_* 字符串 -->
     <script src="partials/settings-modal.js"></script>
     <script src="partials/stats-modal.js"></script>
     <script src="partials/dictation-modal.js"></script>
+    <script src="partials/help-modal.js"></script>
 
     <!-- js 逻辑：按依赖顺序 -->
     <script src="js/constants.js"></script>
