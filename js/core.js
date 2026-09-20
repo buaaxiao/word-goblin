@@ -458,3 +458,7 @@ function loadDictationSettings() {
 function getSyncMode() {
   return config.syncMode || "merge";
 }
+
+function jumpToWrongWords() {
+  // 占位：暂无跳转行为
+}
