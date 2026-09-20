@@ -418,7 +418,7 @@ function selectChapter(ci) {
   if (ch.selected) {
     ch.selected = false;
     listVisibleSet.delete(ch.name);
-    tempVisibleChapters.add(ci);
+    tempVisibleChapters.delete(ci); // ★ 不再保留
   } else {
     ch.selected = true;
     currentChapter = ci;
@@ -433,12 +433,15 @@ function selectChapter(ci) {
 
 // 章节列表行内复选框
 function toggleChapter(ci, checked) {
-  data.chapters[ci].selected = checked;
+  const ch = data.chapters[ci];
+  ch.selected = checked;
 
   if (checked) {
+    listVisibleSet.add(ch.name);
     tempVisibleChapters.delete(ci);
   } else {
-    tempVisibleChapters.add(ci);
+    listVisibleSet.delete(ch.name); // ★ 从可见集合移除
+    tempVisibleChapters.delete(ci); // ★ 也不留临时可见
   }
 
   saveData();

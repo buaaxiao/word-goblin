@@ -83,16 +83,7 @@ function speak(text, lang) {
         lastSpeechError = (e && e.error) || "unknown";
         finish();
       };
-      // ★ 兜底超时：时间延长到 8 秒起，且兜底时 cancel 掉残留 TTS
-      setTimeout(
-        () => {
-          try {
-            speechSynthesis.cancel();
-          } catch (e) {}
-          finish();
-        },
-        Math.max(8000, text.length * 1000 + 4000),
-      );
+      setTimeout(finish, Math.max(3000, text.length * 500 + 1500));
       try {
         speechSynthesis.speak(u);
       } catch (e) {
@@ -352,12 +343,12 @@ function startDictQuick() {
 }
 
 async function runDictation() {
-  const order = getDictationSettings().playOrder || 0;
-  const loopMode = order === 2;
+  const loopMode = (getDictationSettings().playOrder || 0) === 2;
 
   do {
     const items = dict.items;
     let i = 0;
+
     while (i < items.length && dict.running) {
       if (dict.paused) await waitResume();
       if (!dict.running) return;
@@ -365,18 +356,14 @@ async function runDictation() {
       dict.idx = i;
       const it = items[i];
       const spoken = dict.speakChinese && it.meaning ? it.meaning : it.text;
-      const hasChinese = /[\u4e00-\u9fff]/.test(spoken);
-      const lang = dict.speakChinese || hasChinese ? "zh-CN" : "en-US";
-
-      try {
-        speechSynthesis.cancel();
-      } catch (e) {}
+      const lang = /[\u4e00-\u9fff]/.test(spoken) ? "zh-CN" : "en-US";
 
       setCurrentWord(it.text);
       setProgress(i, items.length);
       updateNavButtons(i, items.length);
 
       let skipCurrent = false;
+
       for (let r = 0; r < dict.repeatCount; r++) {
         if (!dict.running) return;
         if (dict.paused) await waitResume();
@@ -384,36 +371,49 @@ async function runDictation() {
 
         dict.currentRepeat = r;
         const speechPromise = speak(spoken, lang);
-        const estimatedMs = Math.max(3000, spoken.length * 500 + 1500);
-        const result = await waitOrAction(estimatedMs);
-
+        const result = await waitOrAction(
+          Math.max(4000, spoken.length * 600 + 2000),
+        );
         if (!dict.running) return;
 
-        if (result.action === "prev") {
+        // ===== 遍内 prev / next =====
+        if (result.action === "prev" || result.action === "next") {
+          const h = await handleJump(
+            i,
+            items.length,
+            result.action === "prev" ? -1 : 1,
+          );
+          if (h.stopped) return;
+          if (h.replay) {
+            r--;
+            continue;
+          }
+          if (h.jump) {
+            i = h.targetIdx - 1;
+            skipCurrent = true;
+            break;
+          }
+          try {
+            await speechPromise;
+          } catch (e) {}
+          continue;
+        }
+        // ===== 遍内 replay =====
+        if (result.action === "replay") {
           try {
             speechSynthesis.cancel();
           } catch (e) {}
-          if (i > 0) {
+          const idle = await waitInIdle(2000);
+          if (idle.action === "stopped") return;
+          if (idle.action === "next") {
+            skipCurrent = true;
+            break;
+          }
+          if (idle.action === "prev" && i > 0) {
             i--;
             skipCurrent = true;
             break;
-          } else {
-            toast("已经是第一个了");
-            try {
-              await speechPromise;
-            } catch (e) {}
-            continue;
           }
-        } else if (result.action === "next") {
-          try {
-            speechSynthesis.cancel();
-          } catch (e) {}
-          skipCurrent = true;
-          break;
-        } else if (result.action === "replay") {
-          try {
-            speechSynthesis.cancel();
-          } catch (e) {}
           r--;
           continue;
         }
@@ -422,25 +422,41 @@ async function runDictation() {
           await speechPromise;
         } catch (e) {}
 
+        // ===== 遍间隔 =====
         if (r < dict.repeatCount - 1) {
-          const gapResult = await waitOrAction(dict.repeatIntervalMs);
+          const gap = await waitOrAction(dict.repeatIntervalMs);
           if (!dict.running) return;
-          if (gapResult.action === "prev") {
-            try {
-              speechSynthesis.cancel();
-            } catch (e) {}
-            if (i > 0) {
+
+          if (gap.action === "prev" || gap.action === "next") {
+            const h = await handleJump(
+              i,
+              items.length,
+              gap.action === "prev" ? -1 : 1,
+            );
+            if (h.stopped) return;
+            if (h.replay) {
+              r = -1;
+              break;
+            }
+            if (h.jump) {
+              i = h.targetIdx - 1;
+              skipCurrent = true;
+              break;
+            }
+            break;
+          }
+          if (gap.action === "replay") {
+            const idle = await waitInIdle(2000);
+            if (idle.action === "stopped") return;
+            if (idle.action === "next") {
+              skipCurrent = true;
+              break;
+            }
+            if (idle.action === "prev" && i > 0) {
               i--;
               skipCurrent = true;
               break;
-            } else {
-              toast("已经是第一个了");
             }
-            break;
-          } else if (gapResult.action === "next") {
-            skipCurrent = true;
-            break;
-          } else if (gapResult.action === "replay") {
             r = -1;
             break;
           }
@@ -453,30 +469,45 @@ async function runDictation() {
         continue;
       }
 
+      // ===== 词间间隔 =====
       let iv = dict.intervalMs;
       if (it.text.length === 4) iv *= 2;
-      const gapResult = await waitOrAction(iv);
+      const gap = await waitOrAction(iv);
       if (!dict.running) return;
-      if (gapResult.action === "prev") {
-        if (i > 0) {
+
+      if (gap.action === "prev" || gap.action === "next") {
+        const h = await handleJump(
+          i,
+          items.length,
+          gap.action === "prev" ? -1 : 1,
+        );
+        if (h.stopped) return;
+        if (h.replay) continue;
+        if (h.jump) {
+          i = h.targetIdx;
+          continue;
+        }
+        i++;
+        continue;
+      }
+      if (gap.action === "replay") {
+        const idle = await waitInIdle(2000);
+        if (idle.action === "stopped") return;
+        if (idle.action === "next") {
+          i++;
+          continue;
+        }
+        if (idle.action === "prev" && i > 0) {
           i--;
           continue;
-        } else {
-          toast("已经是第一个了");
         }
-      } else if (gapResult.action === "next") {
-        i++;
-      } else if (gapResult.action === "replay") {
         continue;
-      } else {
-        i++;
       }
+      i++;
     }
 
-    // ★ 循环模式：重置 idx，从头再来；顺序/随机/单一：退出
     if (loopMode && dict.running) {
       dict.idx = 0;
-      // 可加一点间隔，避免连续刷新太快
       await waitOrAction(500);
     }
   } while (loopMode && dict.running);
@@ -486,6 +517,29 @@ async function runDictation() {
     stopTimer();
     enterReview();
   }
+}
+
+/**
+ * 处理一次 prev/next 跳转。
+ * 返回 { stopped?, replay?, jump?, targetIdx? }
+ */
+async function handleJump(i, total, dir) {
+  const target = i + dir;
+  if (target < 0) {
+    toast("已经是第一个了");
+    return { jump: false };
+  }
+  if (target >= total) {
+    toast("已经是最后一个了");
+    return { jump: false };
+  }
+  try {
+    speechSynthesis.cancel();
+  } catch (e) {}
+  const r = await previewAndCool(target, total);
+  if (r.action === "stopped") return { stopped: true };
+  if (r.action === "replay") return { replay: true };
+  return { jump: true, targetIdx: r.targetIdx };
 }
 
 function setCurrentWord(t) {
@@ -619,27 +673,41 @@ function finishDictation() {
   if (typeof setCurrentWord === "function") setCurrentWord("🎉 默写完成");
   enterReview();
 }
+/**
+ * prev / next / replay 的统一入口：
+ *   - 暂停中：先恢复播放，再等一拍触发动作
+ *   - 播放中：直接触发动作
+ * @param {'prev'|'next'|'replay'} action
+ */
+function _triggerDictAction(action) {
+  if (dict.phase !== "playing" || !dict.running) return;
+
+  const runAction = () => {
+    if (action === "next" && dict.skipResolve) dict.skipResolve();
+    if (action === "prev" && dict.prevResolve) dict.prevResolve();
+    if (action === "replay" && dict.replayResolve) dict.replayResolve();
+    try {
+      speechSynthesis.cancel();
+    } catch (e) {}
+  };
+
+  if (dict.paused) {
+    pauseResume();
+    setTimeout(runAction, 0);
+    return;
+  }
+
+  runAction();
+}
 
 function nextWord() {
-  if (dict.phase !== "playing" || !dict.running) return;
-  if (dict.skipResolve) dict.skipResolve();
-  try {
-    speechSynthesis.cancel();
-  } catch (e) {}
+  _triggerDictAction("next");
 }
 function prevWord() {
-  if (dict.phase !== "playing" || !dict.running) return;
-  if (dict.prevResolve) dict.prevResolve();
-  try {
-    speechSynthesis.cancel();
-  } catch (e) {}
+  _triggerDictAction("prev");
 }
 function replayWord() {
-  if (dict.phase !== "playing" || !dict.running) return;
-  if (dict.replayResolve) dict.replayResolve();
-  try {
-    speechSynthesis.cancel();
-  } catch (e) {}
+  _triggerDictAction("replay");
 }
 
 function showPhase(p) {
@@ -861,4 +929,84 @@ function hasItemsToDictate() {
   dict.speakChinese = dictLangIsChinese(dl);
   dict.mode = s.mode || 0;
   return collectItems().length > 0;
+}
+
+/**
+ * 空闲等待：等够 ms 毫秒，或被 prev/next/replay/停止 提前唤醒。
+ * 与 sleep 的区别：期间能被 prev/next/replay resolve 打断，也感知 running / paused。
+ * @param {number} ms
+ * @returns {Promise<{action: 'timeout'|'next'|'prev'|'replay'|'stopped'}>}
+ */
+function waitInIdle(ms) {
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer = null;
+
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      dict.skipResolve = null;
+      dict.prevResolve = null;
+      dict.replayResolve = null;
+    };
+
+    const finish = (action) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve({ action });
+    };
+
+    timer = setTimeout(() => finish("timeout"), ms);
+
+    dict.skipResolve = () => finish("next");
+    dict.prevResolve = () => finish("prev");
+    dict.replayResolve = () => finish("replay");
+
+    const watch = () => {
+      if (settled) return;
+      if (!dict.running) {
+        finish("stopped");
+        return;
+      }
+      if (dict.paused) {
+        waitResume().then(watch);
+        return;
+      }
+      setTimeout(watch, 100);
+    };
+    watch();
+  });
+}
+
+/**
+ * 切到目标词 → 更新界面 → 2 秒冷却（可被 prev/next/replay 打断并继续循环）
+ * @param {number} targetIdx
+ * @param {number} total
+ * @returns {Promise<{action:'timeout'|'stopped'|'replay', targetIdx:number}>}
+ */
+async function previewAndCool(targetIdx, total) {
+  while (true) {
+    const it = dict.items[targetIdx];
+    if (!it) return { action: "timeout", targetIdx };
+
+    // ★ 立即刷新界面到目标词
+    setCurrentWord(it.text);
+    setProgress(targetIdx, total);
+    updateNavButtons(targetIdx, total);
+
+    const idle = await waitInIdle(2000);
+
+    if (idle.action === "stopped") return { action: "stopped", targetIdx };
+    if (idle.action === "timeout") return { action: "timeout", targetIdx };
+    if (idle.action === "replay") return { action: "replay", targetIdx };
+
+    if (idle.action === "next") {
+      targetIdx = Math.min(targetIdx + 1, total - 1);
+      continue;
+    }
+    if (idle.action === "prev") {
+      targetIdx = Math.max(targetIdx - 1, 0);
+      continue;
+    }
+  }
 }
