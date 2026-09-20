@@ -232,7 +232,7 @@ function renderChapterList() {
       const total = data.chapters.length;
       if (selected === 0) {
         // ★ 无已选章节 → 提示去搜索栏选定
-        badge.textContent = "未在搜索栏中选定章节";
+        badge.textContent = "请选择章节";
       } else {
         badge.textContent = total + " 章节 · 选 " + selected;
       }
