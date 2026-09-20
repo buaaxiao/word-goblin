@@ -149,6 +149,10 @@
       opts.onOk,
       opts.onCancel,
     );
+
+    if (typeof opts.onOpened === "function") {
+      setTimeout(opts.onOpened, 0);
+    }
   };
 
   window.openInfoModal = function (opts) {

@@ -963,3 +963,70 @@ body.dark .settings-head .modal-close:hover {
   justify-content: center;
   margin: 12px 0;
 }
+
+/* ===== 默写：底部设置摘要 ===== */
+.dict-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  line-height: 1;
+}
+
+.dict-meta-foot {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.dict-meta-item {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.dict-meta-k {
+  background: #eef2f7;
+  color: #64748b;
+  padding: 3px 6px;
+  font-weight: 500;
+}
+
+.dict-meta-v {
+  background: #ffffff;
+  color: #334155;
+  padding: 3px 8px;
+  font-weight: 600;
+}
+
+/* 深色模式 */
+body.dark .dict-meta-item {
+  background: #1b2635;
+  border-color: #2c3a52;
+}
+body.dark .dict-meta-k {
+  background: #22304a;
+  color: #94a3b8;
+}
+body.dark .dict-meta-v {
+  background: #1b2635;
+  color: #cbd5e1;
+}
+
+/* =================================================================
+ * 设置弹窗：所有 custom-select 占满行宽
+ * ================================================================= */
+.settings-pane .row > [id$="Options"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-pane .row > label {
+  min-width: 72px;
+  flex-shrink: 0;
+}

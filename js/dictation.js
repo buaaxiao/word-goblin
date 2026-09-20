@@ -138,6 +138,38 @@ function testSpeech() {
   toast("正在测试发音…");
 }
 
+function renderDictMeta() {
+  const el = $("dictMeta");
+  if (!el) return;
+
+  const s = getDictationSettings();
+  const dl = normalizeDictLang(getDefaultDictLang());
+  const langLabel = dictLangIsChinese(dl) ? "汉语" : "EN";
+
+  const modeLabels = ["全部", "错题", "末错"];
+  const modeLabel = modeLabels[s.mode || 0] || "全部";
+
+  const orderLabel =
+    (typeof PLAY_ORDER_LABELS !== "undefined" &&
+      PLAY_ORDER_LABELS[s.playOrder || 0]) ||
+    "顺序";
+
+  const chip = (k, v) =>
+    '<span class="dict-meta-item">' +
+    '<span class="dict-meta-k">' +
+    k +
+    "</span>" +
+    '<span class="dict-meta-v">' +
+    v +
+    "</span>" +
+    "</span>";
+
+  el.innerHTML =
+    chip("报词", langLabel) +
+    chip("范围", modeLabel) +
+    chip("顺序", orderLabel);
+}
+
 const dict = {
   running: false,
   paused: false,
@@ -297,15 +329,12 @@ function startDictation() {
   }
 
   // ★ 按"播报顺序"处理
-  const order = s.playOrder || 0;
-  if (order === 1) {
-    // 随机：打乱
+  const order = s.playOrder || PLAY_ORDER.SEQ;
+  if (order === PLAY_ORDER.RANDOM) {
     shuffle(items);
-  } else if (order === 3) {
-    // 单一：只播第一个
+  } else if (order === PLAY_ORDER.SINGLE || order === PLAY_ORDER.SINGLE_LOOP) {
     items = items.slice(0, 1);
   }
-  // order === 0（顺序）/ 2（循环）：保持原顺序
 
   dict.items = items;
   dict.marks = items.map(() => "");
@@ -343,7 +372,9 @@ function startDictQuick() {
 }
 
 async function runDictation() {
-  const loopMode = (getDictationSettings().playOrder || 0) === 2;
+  const order = getDictationSettings().playOrder || PLAY_ORDER.SEQ;
+  const loopMode =
+    order === PLAY_ORDER.LOOP || order === PLAY_ORDER.SINGLE_LOOP;
 
   do {
     const items = dict.items;

@@ -114,7 +114,7 @@ function updateWordSortIcons() {
  * 单词行 HTML：单层 grid（9 槽）
  *   手柄 | 单词 | 对 | 最后对 | 错 | 最后错 | 均分 | 编辑 | 删除
  * ================================================================= */
-function buildWordRowHtml(w, key, opts) {
+function buildWordRowHtml(w, ci, wi, opts) {
   const {
     viewMode,
     handleDisabled,
@@ -125,14 +125,17 @@ function buildWordRowHtml(w, key, opts) {
   } = opts;
   const wordTip = w.meaning ? w.text + "（" + w.meaning + "）" : w.text;
 
+  // ★ 稳定唯一 id（不受排序/搜索下标影响）
+  const uid = ci + "-" + wi;
+
   // 单词列
   const wordHtml =
     '<span class="word-cell">' +
     '<span class="wtext" title="' +
     esc(wordTip) +
-    '" onclick="toggleWordDetail(' +
-    key +
-    ')">' +
+    '" onclick="toggleWordDetail(\'' +
+    uid +
+    "')\">" +
     highlightText(w.text, wordSearchQuery) +
     "</span>" +
     (w.meaning
@@ -199,7 +202,9 @@ function buildWordRowHtml(w, key, opts) {
       disabledReason +
       "')\">✎</button>"
     : '<button class="icon-btn" onclick="editWord(' +
-      key +
+      ci +
+      "," +
+      wi +
       ')" title="编辑">✎</button>';
 
   const delBtnHtml = actionsDisabled
@@ -210,7 +215,9 @@ function buildWordRowHtml(w, key, opts) {
       disabledReason +
       "')\">🗑</button>"
     : '<button class="icon-btn" onclick="deleteWord(' +
-      key +
+      ci +
+      "," +
+      wi +
       ')" title="删除">🗑</button>';
 
   return handleHtml + wordHtml + statsHtml + editBtnHtml + delBtnHtml;
@@ -260,7 +267,8 @@ function renderWords() {
   const rawCount = items._raw;
 
   // 是否允许拖拽/操作：单章节 + 非去重 + 单词数 > 1
-  const canDrag = !multi && !dedupeWords && items.length > 1;
+  const canDrag =
+    !multi && !dedupeWords && !wordSort && !wordSearchQuery && items.length > 1;
   const handleDisabled = !canDrag;
 
   // ★ 标题：单行显示，超出省略；悬停显示完整文字
@@ -344,8 +352,8 @@ function renderWords() {
   }
 
   filtered.forEach(({ it, i }) => {
-    const key = i;
-    const isOpen = openWordDetails.has(key);
+    const uid = it.ci + "-" + it.wi;
+    const isOpen = openWordDetails.has(uid);
     const w = it.w;
     const d = document.createElement("div");
     const viewMode = config.wordMode === "view";
@@ -365,7 +373,7 @@ function renderWords() {
       '<div class="word-detail' +
       (isOpen ? " show" : "") +
       '" id="wd-' +
-      key +
+      uid +
       '">' +
       '<div class="detail-row"><span class="detail-label">练习总次数</span><span class="detail-value">' +
       total +
@@ -397,7 +405,7 @@ function renderWords() {
       "</div>";
 
     d.innerHTML =
-      buildWordRowHtml(w, key, {
+      buildWordRowHtml(w, it.ci, it.wi, {
         viewMode,
         handleDisabled,
         multi,
@@ -459,10 +467,10 @@ function renderWords() {
   updateStats();
 }
 
-function toggleWordDetail(key) {
-  if (openWordDetails.has(key)) openWordDetails.delete(key);
-  else openWordDetails.add(key);
-  const el = document.getElementById("wd-" + key);
+function toggleWordDetail(uid) {
+  if (openWordDetails.has(uid)) openWordDetails.delete(uid);
+  else openWordDetails.add(uid);
+  const el = document.getElementById("wd-" + uid);
   if (el) el.classList.toggle("show");
 }
 
@@ -530,12 +538,12 @@ function addWord(text, meaning, ci) {
   renderChapterList();
 }
 
-function deleteWord(i) {
-  const it = getMergedItems()[i];
-  if (!it) return;
+function deleteWord(ci, wi) {
+  const w = data.chapters[ci] && data.chapters[ci].words[wi];
+  if (!w) return;
 
-  const wordText = it.w.text || "";
-  const meaning = it.w.meaning ? "（" + it.w.meaning + "）" : "";
+  const wordText = w.text || "";
+  const meaning = w.meaning ? "（" + w.meaning + "）" : "";
 
   openConfirmModal({
     title: "删除单词",
@@ -545,19 +553,19 @@ function deleteWord(i) {
       "</b>" +
       esc(meaning) +
       " 吗？<br>此操作不可撤销。",
-    danger: true, // ★ √ 变红
+    danger: true,
     okTitle: "删除",
     onOk: function () {
-      doDeleteWord(i);
+      return doDeleteWord(ci, wi); // ★ 加 return
     },
   });
 }
 
-function doDeleteWord(i) {
-  const it = getMergedItems()[i];
-  if (!it) return;
+function doDeleteWord(ci, wi) {
+  const w = data.chapters[ci] && data.chapters[ci].words[wi];
+  if (!w) return false;
 
-  data.chapters[it.ci].words.splice(it.wi, 1);
+  data.chapters[ci].words.splice(wi, 1);
   openWordDetails.clear();
   saveData();
   renderWords();
@@ -565,10 +573,9 @@ function doDeleteWord(i) {
   toast("已删除");
 }
 
-function editWord(i) {
-  const it = getMergedItems()[i];
-  if (!it) return;
-  const w = it.w;
+function editWord(ci, wi) {
+  const w = data.chapters[ci] && data.chapters[ci].words[wi];
+  if (!w) return;
 
   openFormModal({
     title: "修改单词",
@@ -584,32 +591,23 @@ function editWord(i) {
     saveTitle: "保存",
     cancelTitle: "取消",
     onSave: function () {
-      return doEditWord(i);
+      return doEditWord(ci, wi);
     },
   });
 }
 
-function doEditWord(i) {
+function doEditWord(ci, wi) {
+  const w = data.chapters[ci] && data.chapters[ci].words[wi];
+  if (!w) return false;
+
   const text = $("mText").value.trim();
   if (!text) {
     toast("单词不能为空");
-    return false; // 不关弹窗
-  }
-  const it = getMergedItems()[i];
-  if (!it) return false;
-  const w = data.chapters[it.ci].words[it.wi];
-  w.text = text;
-  w.meaning = $("mMeaning").value.trim();
-
-  try {
-    saveData();
-    renderWords();
-    renderChapterList();
-    toast("✅ 已修改单词：" + text);
-    return true; // 关弹窗
-  } catch (e) {
-    console.error("修改单词失败：", e);
-    toast("❌ 修改失败：" + (e && e.message ? e.message : e));
     return false;
   }
+  w.text = text;
+  w.meaning = $("mMeaning").value.trim();
+  saveData();
+  renderWords();
+  return true;
 }

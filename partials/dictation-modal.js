@@ -16,7 +16,6 @@ const DICTATION_MODAL_HTML = `
 
   <!-- 大字 -->
   <div class="big" id="currentWord">准备默写</div>
-
   <!-- 进度 -->
   <div class="progressbar"><div id="progressFill"></div></div>
   <p id="progressText">进度: 0 / 0</p>
@@ -48,7 +47,7 @@ const DICTATION_MODAL_HTML = `
     </div>
     <div id="reviewList"></div>
   </div>
-
+  <div class="dict-meta dict-meta-foot" id="dictMeta"></div>
   <div id="dictLangHint" class="dict-lang-hint hidden"></div>
 </div>
 `;
@@ -65,6 +64,9 @@ function openDict() {
   if (!m.innerHTML.trim()) {
     m.innerHTML = DICTATION_MODAL_HTML;
   }
+
+  // ★ 刷新设置摘要
+  if (typeof renderDictMeta === "function") renderDictMeta();
 
   // ★ 用 openModalEl 显示
   openModalEl(m);

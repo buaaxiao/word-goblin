@@ -1,17 +1,52 @@
 /* ===================================================================
  * js/storage.js — 数据加载 / 保存（IndexedDB 版）
- *   data.json：共享词库（fetch）
+ *   data.json：共享词库（fetch，仅点击「同步」时拉取）
  *   wordGoblinLocal：用户数据（IndexedDB）
  *   sessionStorage 增量哨兵：防止 IndexedDB 异步写入未完成就被刷新
  *
  *   ★ 所有"本地-共享"匹配走 uid（id 字段），不再用 name
  *   ★ 兼容历史数据（无 uid）：用 name 认领，认领后立刻写回 IDB
  *   ★ dictLang 统一用 DICT_LANG 枚举（0=EN, 1=ZH）
+ *   ★ 用户主动删除的 uid 记入黑名单，云端同步时不复活
  * =================================================================== */
 
 const STORAGE_KEY_OLD = "wordDictation.data.v1";
 const MIGRATED_FLAG = "wordDictation.migrated.v1";
 const PENDING_KEY = "wordDictation.pending.v1";
+
+/* =================================================================
+ * 已删除 uid 黑名单（防止云端同步复活用户主动删除的章节/单词）
+ * ================================================================= */
+const DELETED_UIDS_KEY = "wordGoblin.deletedUids.v1";
+
+function loadDeletedUids() {
+  try {
+    const raw = localStorage.getItem(DELETED_UIDS_KEY);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch (e) {}
+  return new Set();
+}
+
+function _saveDeletedUids(set) {
+  try {
+    localStorage.setItem(DELETED_UIDS_KEY, JSON.stringify([...set]));
+  } catch (e) {}
+}
+
+function addDeletedUid(uid) {
+  if (!uid) return;
+  const s = loadDeletedUids();
+  s.add(uid);
+  _saveDeletedUids(s);
+}
+
+function removeDeletedUid(uid) {
+  if (!uid) return;
+  const s = loadDeletedUids();
+  if (!s.has(uid)) return;
+  s.delete(uid);
+  _saveDeletedUids(s);
+}
 
 let data = { chapters: [], history: [] };
 let currentChapter = 0;
@@ -74,15 +109,11 @@ async function migrateFromLocalStorage() {
 }
 
 /* =================================================================
- * 二、加载：data.json + wordGoblinLocal → 内存 data.chapters
- *   匹配规则（按优先级）：
- *     1) uid 相同           → 用本地记录（本地优先）
- *     2) uid 不同、name 相同 → 认领：把本地 uid 改成共享 uid，写回 IDB
- *     3) 都匹配不上         → 共享章节新增；本地章节保留为"本地独有"
+ * 二、加载：只读本地 IndexedDB（云端合并仅在「同步」时）
  * ================================================================= */
 async function loadData() {
   try {
-    // 0. 先检查 sessionStorage 增量哨兵
+    // 0. sessionStorage 哨兵（保留：处理未提交的本地写）
     let pending = null;
     try {
       const raw = sessionStorage.getItem(PENDING_KEY);
@@ -90,13 +121,10 @@ async function loadData() {
     } catch (e) {
       console.warn("[loadData] 读取 sessionStorage 哨兵失败：", e);
     }
-
     if (pending && (pending.chapters || pending.words || pending.history)) {
-      console.warn("[loadData] 发现未提交的保存（增量哨兵），先回写 IDB");
       try {
         await applyPendingToIDB(pending);
         sessionStorage.removeItem(PENDING_KEY);
-        console.log("[loadData] 增量哨兵已回写 IDB 并清除");
       } catch (e) {
         console.error("[loadData] 增量哨兵回写 IDB 失败：", e);
       }
@@ -104,195 +132,56 @@ async function loadData() {
 
     await migrateFromLocalStorage();
 
-    // 1. 拉共享词库
-    let cloud = { chapters: [] };
-    try {
-      const res = await fetch(getDataUrl(), {
-        cache: "no-store",
-      });
-      if (res.ok) cloud = await res.json();
-    } catch (e) {
-      console.warn("[cloud] fetch 失败，使用本地缓存：", e);
-    }
-
-    // 2. 读本地用户数据
+    // ★ 只读本地，不再 fetch 云端
     const localChapters = await dbGetAllChapters();
     const localWords = await dbGetAllWords();
     const localHistory = await dbGetAllHistory();
 
-    // 3. 建本地索引：id 和 name 两份（name 用于"认领"历史数据）
-    const localChapterById = new Map();
-    const localChapterByName = new Map();
-    localChapters.forEach((c) => {
-      localChapterById.set(c.id, c);
-      if (!localChapterByName.has(c.name)) localChapterByName.set(c.name, c);
-    });
-
-    const localWordsByChapterId = new Map();
+    // 单词按章节分组
+    const wordsByChapterId = new Map();
     localWords.forEach((w) => {
-      if (!localWordsByChapterId.has(w.chapterId))
-        localWordsByChapterId.set(w.chapterId, []);
-      localWordsByChapterId.get(w.chapterId).push(w);
+      if (!wordsByChapterId.has(w.chapterId))
+        wordsByChapterId.set(w.chapterId, []);
+      wordsByChapterId.get(w.chapterId).push(w);
     });
 
-    // 4. 合并（uid 匹配 + name 认领）
-    const merged = [];
-    const usedLocalChapterIds = new Set();
+    // 章节按 order 排
+    const sortedChapters = [...localChapters].sort(
+      (a, b) => (a.order || 0) - (b.order || 0),
+    );
 
-    for (const cch of cloud.chapters || []) {
-      // ★ 共享章节必须有 uid；没跑迁移脚本时用 name 兜底
-      const cchId = cch.id || "ch_shared_" + encodeURIComponent(cch.name);
+    data.chapters = sortedChapters.map((c) => ({
+      _id: c.id,
+      name: c.name,
+      selected: !!c.selected,
+      dictLang: normalizeDictLang(
+        typeof c.dictLang === "number" ? c.dictLang : DICT_LANG.EN,
+      ),
+      words: (wordsByChapterId.get(c.id) || []).map((w) => ({
+        _id: w.id,
+        text: w.text || "",
+        meaning: w.meaning || "",
+        wrongCount: w.wrongCount || 0,
+        correctCount: w.correctCount || 0,
+        lastErrorDate: w.lastErrorDate || "",
+        lastCorrectDate: w.lastCorrectDate || "",
+        scoreCount: w.scoreCount || 0,
+        scoreSum: w.scoreSum || 0,
+      })),
+    }));
 
-      // 4.1 章节匹配：先 id，后 name（认领）
-      let localCh = localChapterById.get(cchId);
-      let needClaim = false;
-      if (!localCh) {
-        const byName = localChapterByName.get(cch.name);
-        if (byName) {
-          localCh = byName;
-          needClaim = true; // ★ 认领：本地记录要改成共享 uid
-        }
-      }
-
-      if (localCh) usedLocalChapterIds.add(localCh.id);
-
-      // 4.2 单词匹配：先 id，后 text（认领）
-      const localChWords = localCh
-        ? localWordsByChapterId.get(localCh.id) || []
-        : [];
-      const localWordById = new Map(localChWords.map((w) => [w.id, w]));
-      const localWordByText = new Map(localChWords.map((w) => [w.text, w]));
-      const claimedWordIds = []; // 本次认领的单词（旧 id 列表）
-
-      const mergedWords = [];
-      for (const cw of cch.words || []) {
-        const cwId = cw.id || "w_shared_" + encodeURIComponent(cw.text);
-
-        let lw = localWordById.get(cwId);
-        let wordClaim = false;
-        if (!lw) {
-          const byText = localWordByText.get(cw.text);
-          if (byText) {
-            lw = byText;
-            wordClaim = true;
-          }
-        }
-
-        if (wordClaim && lw) {
-          claimedWordIds.push({ oldId: lw.id, newId: cwId, rec: lw });
-        }
-
-        mergedWords.push({
-          _id: cwId,
-          text: lw ? lw.text : cw.text,
-          meaning: lw ? lw.meaning : cw.meaning,
-          wrongCount: lw ? lw.wrongCount : 0,
-          correctCount: lw ? lw.correctCount : 0,
-          lastErrorDate: lw ? lw.lastErrorDate : "",
-          lastCorrectDate: lw ? lw.lastCorrectDate : "",
-          scoreCount: lw ? lw.scoreCount : 0,
-          scoreSum: lw ? lw.scoreSum : 0,
-        });
-      }
-
-      merged.push({
-        _id: cchId,
-        name: localCh ? localCh.name : cch.name,
-        dictLang: normalizeDictLang(
-          localCh
-            ? typeof localCh.dictLang === "number"
-              ? localCh.dictLang
-              : DICT_LANG.EN
-            : typeof cch.dictLang === "number"
-              ? cch.dictLang
-              : DICT_LANG.EN,
-        ),
-        selected: localCh ? !!localCh.selected : false,
-        words: mergedWords,
-      });
-
-      // 4.3 认领：把本地旧 uid 改成共享 uid（写回 IDB）
-      if (needClaim && localCh) {
-        try {
-          await dbDeleteChapter(localCh.id);
-          await dbPutChapter({
-            id: cchId,
-            name: localCh.name,
-            selected: !!localCh.selected,
-            dictLang: normalizeDictLang(
-              typeof localCh.dictLang === "number"
-                ? localCh.dictLang
-                : DICT_LANG.EN,
-            ),
-            order: localCh.order || 0,
-          });
-        } catch (e) {
-          console.error("[loadData] 认领章节写回失败：", e);
-        }
-      }
-      if (claimedWordIds.length) {
-        for (const { oldId, newId, rec } of claimedWordIds) {
-          try {
-            await dbDeleteWord(oldId);
-            await dbPutWord({
-              id: newId,
-              chapterId: cchId,
-              text: rec.text || "",
-              meaning: rec.meaning || "",
-              wrongCount: rec.wrongCount || 0,
-              correctCount: rec.correctCount || 0,
-              lastErrorDate: rec.lastErrorDate || "",
-              lastCorrectDate: rec.lastCorrectDate || "",
-              scoreCount: rec.scoreCount || 0,
-              scoreSum: rec.scoreSum || 0,
-            });
-          } catch (e) {
-            console.error("[loadData] 认领单词写回失败：", e);
-          }
-        }
-      }
-    }
-
-    // 5. 本地独有章节（共享词库里没有对应 uid 的）
-    for (const lc of localChapters) {
-      if (usedLocalChapterIds.has(lc.id)) continue;
-      const lw = localWordsByChapterId.get(lc.id) || [];
-      merged.push({
-        _id: lc.id,
-        name: lc.name,
-        dictLang: normalizeDictLang(
-          typeof lc.dictLang === "number" ? lc.dictLang : DICT_LANG.EN,
-        ),
-        selected: !!lc.selected,
-        words: lw.map((w) => ({
-          _id: w.id,
-          text: w.text || "",
-          meaning: w.meaning || "",
-          wrongCount: w.wrongCount || 0,
-          correctCount: w.correctCount || 0,
-          lastErrorDate: w.lastErrorDate || "",
-          lastCorrectDate: w.lastCorrectDate || "",
-          scoreCount: w.scoreCount || 0,
-          scoreSum: w.scoreSum || 0,
-        })),
-      });
-    }
-
-    data.chapters = merged;
-
-    // 6. 历史
-    localHistory.sort((a, b) => (a.date > b.date ? 1 : -1));
     data.history = localHistory.map((h) => ({
       _id: h.id,
-      date: h.date,
-      chapters: h.chapters,
-      total: h.total,
-      wrongCount: h.wrongCount,
-      score: h.score,
+      date: h.date || "",
+      chapters: h.chapters || "",
+      total: h.total || 0,
+      wrongCount: h.wrongCount || 0,
+      score: h.score || 0,
     }));
+
+    console.log("[loadData] 从本地 IDB 载入", data.chapters.length, "章节");
   } catch (e) {
-    console.error("loadData 失败：", e);
-    data = { chapters: [], history: [] };
+    console.error("[loadData] 失败：", e);
   }
 }
 
@@ -342,6 +231,7 @@ async function applyPendingToIDB(pending) {
 /* =================================================================
  * 四、保存：内存 data → IndexedDB（增量 diff）
  *   ★ 章节/单词的 _id 已存在就复用，不重新生成
+ *   ★ 删除时记录 uid 到黑名单；保留时清除黑名单
  * ================================================================= */
 async function saveData() {
   const changed = {
@@ -366,6 +256,7 @@ async function saveData() {
         ch._id = id;
       }
       keptChapterIds.add(id);
+      removeDeletedUid(id); // ★ 保留 → 从黑名单移除
 
       const rec = {
         id,
@@ -387,10 +278,12 @@ async function saveData() {
       if (!keptChapterIds.has(c.id)) {
         await dbDeleteChapter(c.id);
         changed.deleted.chapters.push(c.id);
+        addDeletedUid(c.id); // ★ 删除 → 加入黑名单
         const ws = await dbGetWordsByChapter(c.id);
         for (const w of ws) {
           await dbDeleteWord(w.id);
           changed.deleted.words.push(w.id);
+          addDeletedUid(w.id); // ★
         }
       }
     }
@@ -408,6 +301,7 @@ async function saveData() {
           w._id = id;
         }
         keptWordIds.add(id);
+        removeDeletedUid(id); // ★ 保留 → 从黑名单移除
 
         const rec = {
           id,
@@ -433,6 +327,7 @@ async function saveData() {
       if (!keptWordIds.has(w.id)) {
         await dbDeleteWord(w.id);
         changed.deleted.words.push(w.id);
+        addDeletedUid(w.id); // ★ 删除 → 加入黑名单
       }
     }
 
@@ -537,7 +432,6 @@ function uniqConcat(a, b) {
 
 /* =================================================================
  * 六、浅比较工具
- *   ★ dictLang 比较用 normalizeDictLang 规范化，避免 0 vs "0" 的坑
  * ================================================================= */
 function shallowEqualChapter(a, b) {
   return (

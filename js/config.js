@@ -32,6 +32,7 @@ const config = {
     mode: 0,
     playOrder: 0,
   },
+  syncMode: "merge",
 };
 
 /* =================================================================
@@ -90,6 +91,14 @@ function applyStoredSetting(key, value) {
         Object.assign(config.dictation, obj);
       } catch (e) {}
       break;
+    case KEY_SYNC_MODE:
+      config.syncMode =
+        value === "cloud_first" ||
+        value === "cloud_replace" ||
+        value === "pull_only"
+          ? value
+          : "merge";
+      break;
   }
 }
 
@@ -125,6 +134,14 @@ function applyConfigValue(key, value) {
     case KEY_DICTATION:
       Object.assign(config.dictation, value);
       break;
+    case KEY_SYNC_MODE:
+      config.syncMode =
+        value === "cloud_first" ||
+        value === "cloud_replace" ||
+        value === "pull_only"
+          ? value
+          : "merge";
+      break;
   }
 }
 
@@ -154,6 +171,9 @@ function persistConfigKey(key) {
       break;
     case KEY_DICTATION:
       stored = JSON.stringify(config.dictation);
+      break;
+    case KEY_SYNC_MODE:
+      stored = config.syncMode;
       break;
     default:
       return;

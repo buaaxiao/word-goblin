@@ -56,27 +56,15 @@ const SETTINGS_MODAL_HTML = `
       </div>
       <div class="row">
         <label>报词方式</label>
-        <div class="mode-options">
-          <label><input type="radio" name="dictLang" value="1" onchange="saveLangSelSetting()"> 汉语</label>
-          <label><input type="radio" name="dictLang" value="0" onchange="saveLangSelSetting()"> English</label>
-        </div>
+        <div id="dictLangOptions"></div>
       </div>
       <div class="row">
         <label>默写范围</label>
-        <div class="mode-options">
-          <label><input type="radio" name="dictMode" value="0" onchange="saveDictationSettings()"> 全部单词</label>
-          <label><input type="radio" name="dictMode" value="1" onchange="saveDictationSettings()"> 仅错题</label>
-          <label><input type="radio" name="dictMode" value="2" onchange="saveDictationSettings()"> 仅最后错误</label>
-        </div>
+        <div id="dictModeOptions"></div>
       </div>
       <div class="row">
         <label>播报顺序</label>
-        <div class="mode-options">
-          <label><input type="radio" name="playOrder" value="0" onchange="saveDictationSettings()"> 顺序</label>
-          <label><input type="radio" name="playOrder" value="1" onchange="saveDictationSettings()"> 随机</label>
-          <label><input type="radio" name="playOrder" value="2" onchange="saveDictationSettings()"> 循环</label>
-          <label><input type="radio" name="playOrder" value="3" onchange="saveDictationSettings()"> 单一</label>
-        </div>
+        <div id="playOrderOptions"></div>
       </div>
       <div class="hint-row">
         <button onclick="testSpeech()">🔊 测试发音</button>
@@ -110,10 +98,46 @@ function openSettings() {
     console.error("#settingsModal 不存在");
     return;
   }
-
-  // ★ 惰性填充 HTML（只有第一次真正填）
+  // 1. 惰性填充 HTML
   if (!m.innerHTML.trim()) {
     m.innerHTML = SETTINGS_MODAL_HTML;
+  }
+
+  // 2. 动态渲染三个 custom-select（在 HTML 填好后）
+  const orderBox = m.querySelector("#playOrderOptions");
+  if (orderBox) {
+    const cur = getDictationSettings().playOrder || PLAY_ORDER.SEQ;
+    orderBox.innerHTML = _buildCustomSelect(
+      "playOrderSelect",
+      cur,
+      PLAY_ORDER_LABELS[cur] || "顺序",
+      PLAY_ORDER_DEF,
+      "pickPlayOrder",
+    );
+  }
+
+  const modeBox = m.querySelector("#dictModeOptions");
+  if (modeBox) {
+    const cur = getDictationSettings().mode || DICT_MODE.ALL;
+    modeBox.innerHTML = _buildCustomSelect(
+      "dictModeSelect",
+      cur,
+      DICT_MODE_LABELS[cur] || "全部单词",
+      DICT_MODE_DEF,
+      "pickDictMode",
+    );
+  }
+
+  const langBox = m.querySelector("#dictLangOptions");
+  if (langBox) {
+    const cur = normalizeDictLang(getDefaultDictLang());
+    langBox.innerHTML = _buildCustomSelect(
+      "dictLangSelect",
+      cur,
+      DICT_LANG_LABELS[cur] || "汉语",
+      DICT_LANG_DEF,
+      "pickDictLang",
+    );
   }
 
   // 同步当前值到 UI
@@ -137,4 +161,68 @@ function openSettings() {
 /** 关闭设置弹窗 */
 function closeSettings() {
   closeModalEl(document.getElementById("settingsModal"));
+}
+
+/**
+ * 生成 custom-select HTML
+ */
+function _buildCustomSelect(id, curValue, curLabel, defs, pickFnName) {
+  const optionsHtml = defs
+    .map(
+      (d) =>
+        '<div class="custom-select-option' +
+        (String(d.value) === String(curValue) ? " selected" : "") +
+        '" data-value="' +
+        d.value +
+        '" onclick="' +
+        pickFnName +
+        "('" +
+        d.value +
+        "')\">" +
+        d.label +
+        "</div>",
+    )
+    .join("");
+
+  return (
+    '<div class="custom-select" id="' +
+    id +
+    '" data-value="' +
+    curValue +
+    '">' +
+    '<button type="button" class="custom-select-btn" onclick="toggleCustomSelect(\'' +
+    id +
+    "')\">" +
+    '<span class="custom-select-label">' +
+    curLabel +
+    "</span>" +
+    '<span class="custom-select-arrow">▾</span>' +
+    "</button>" +
+    '<div class="custom-select-panel hidden">' +
+    optionsHtml +
+    "</div>" +
+    "</div>"
+  );
+}
+
+function pickPlayOrder(value) {
+  setCustomSelectValue("playOrderSelect", value);
+  _closeAllCustomSelects();
+  const s = getDictationSettings();
+  s.playOrder = Number(value);
+  setConfig(KEY_DICTATION, s);
+}
+
+function pickDictMode(value) {
+  setCustomSelectValue("dictModeSelect", value);
+  _closeAllCustomSelects();
+  const s = getDictationSettings();
+  s.mode = Number(value);
+  setConfig(KEY_DICTATION, s);
+}
+
+function pickDictLang(value) {
+  setCustomSelectValue("dictLangSelect", value);
+  _closeAllCustomSelects();
+  setConfig(KEY_DICT_LANG, Number(value));
 }

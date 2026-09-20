@@ -87,31 +87,15 @@ function getDefaultDictLang() {
   return config.dictLang;
 }
 
-function saveLangSelSetting() {
-  // ★ 优先读新 radio
-  const radio = document.querySelector('input[name="dictLang"]:checked');
-  let v;
-  if (radio) {
-    v = Number(radio.value);
-  } else {
-    // 回退老 UI
-    const el = $("langSel");
-    v = normalizeDictLang(el && el.value);
-  }
-  setConfig(KEY_DICT_LANG, v);
-}
-
 function loadLangSelSetting() {
-  const v = String(config.dictLang);
+  const v = normalizeDictLang(config.dictLang);
 
-  // 老 UI：单个 <select id="langSel">
-  const el = $("langSel");
-  if (el) el.value = v;
+  const el = $("langSel"); // 老 UI 兜底
+  if (el) el.value = String(v);
 
-  // ★ 新 UI：radio 组 name="dictLang"
-  document.querySelectorAll('input[name="dictLang"]').forEach((r) => {
-    r.checked = r.value === v;
-  });
+  if ($("dictLangSelect") && typeof setCustomSelectValue === "function") {
+    setCustomSelectValue("dictLangSelect", String(v));
+  }
 }
 
 /* =================================================================
@@ -438,10 +422,8 @@ function getDictationSettings() {
 }
 
 function saveDictationSettings() {
-  // ★ 优先读新 radio，找不到再回退老 select
   const modeRadio = document.querySelector('input[name="dictMode"]:checked');
-  const orderRadio = document.querySelector('input[name="playOrder"]:checked');
-  const modeEl = $("modeSel"); // 老 UI 兜底
+  const modeEl = $("modeSel");
 
   const obj = {
     intervalSec:
@@ -456,9 +438,7 @@ function saveDictationSettings() {
     mode: modeRadio
       ? parseInt(modeRadio.value, 10) || 0
       : parseInt(modeEl && modeEl.value, 10) || DICTATION_SETTINGS_DEFAULT.mode,
-    playOrder: orderRadio
-      ? parseInt(orderRadio.value, 10) || 0
-      : DICTATION_SETTINGS_DEFAULT.playOrder,
+    playOrder: config.dictation.playOrder || 0, // ★ 从 config 拿
   };
   setConfig(KEY_DICTATION, obj);
 }
@@ -471,15 +451,14 @@ function loadDictationSettings() {
     $("repeatIntervalSec").value = s.repeatIntervalSec;
   if ($("modeSel")) $("modeSel").value = String(s.mode);
 
-  // 播报顺序
-  const orderVal = String(s.playOrder || 0);
-  document.querySelectorAll('input[name="playOrder"]').forEach((r) => {
-    r.checked = r.value === orderVal;
-  });
+  if (typeof setCustomSelectValue === "function") {
+    if ($("playOrderSelect"))
+      setCustomSelectValue("playOrderSelect", String(s.playOrder || 0));
+    if ($("dictModeSelect"))
+      setCustomSelectValue("dictModeSelect", String(s.mode || 0));
+  }
+}
 
-  // ★ 补：默写范围
-  const modeVal = String(s.mode != null ? s.mode : 0);
-  document.querySelectorAll('input[name="dictMode"]').forEach((r) => {
-    r.checked = r.value === modeVal;
-  });
+function getSyncMode() {
+  return config.syncMode || "merge";
 }

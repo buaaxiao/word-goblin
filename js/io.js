@@ -3,7 +3,7 @@
  *
  * 依赖：
  *   - core.js       : $, toast
- *   - storage.js    : data, saveData
+ *   - storage.js    : data, saveData, loadDeletedUids
  *   - chapters.js   : renderChapterList, initListVisibleSet
  *   - words.js      : renderWords
  *   - reports.js    : updateStats
@@ -11,17 +11,14 @@
  * =================================================================== */
 
 // ===================================================================
-// 二、导出
+// 一、导出
 // ===================================================================
 function confirmExport() {
   openConfirmModal({
     title: "导出数据",
     body: "确定导出当前数据吗？",
     okTitle: "导出",
-    onOk: function () {
-      console.log("[导入] onOk 被调用，incoming =", incoming);
-      exportData();
-    },
+    onOk: exportData,
   });
 }
 
@@ -68,7 +65,7 @@ function formatTimestamp(d) {
 }
 
 // ===================================================================
-// 三、导入
+// 二、导入
 // ===================================================================
 function importData() {
   const input = document.getElementById("fileInput");
@@ -126,10 +123,6 @@ function importData() {
 
 // 合并导入
 function doImportMerge(incoming) {
-  console.log(
-    "[导入] 开始",
-    incoming && incoming.chapters && incoming.chapters.length,
-  );
   try {
     const current = data.chapters || [];
     const byName = new Map();
@@ -162,7 +155,6 @@ function doImportMerge(incoming) {
         const target = byName.get(name);
         if (!Array.isArray(target.words)) target.words = [];
 
-        // text → 本地词对象，便于 O(1) 查找
         const wordMap = new Map();
         target.words.forEach((w) => {
           const t = (w.text || "").trim();
@@ -178,31 +170,17 @@ function doImportMerge(incoming) {
           if (!t) return;
 
           if (wordMap.has(t)) {
-            // ★ 重复：保留本地，只补本地为空、导入有值的"描述性"字段
             const local = wordMap.get(t);
             let filled = false;
-
             if (!local.meaning && w.meaning) {
               local.meaning = (w.meaning || "").trim();
               filled = true;
             }
-
-            // 如需补其他描述性字段，仿照上面继续加：
-            // if (!local.phonetic && w.phonetic) {
-            //   local.phonetic = (w.phonetic || "").trim();
-            //   filled = true;
-            // }
-
-            // ★ 统计字段一律不动：
-            // wrongCount / correctCount / lastErrorDate / lastCorrectDate
-            // scoreCount / scoreSum 全部保留本地
-
             chSkipped++;
             if (filled) chFilled++;
             return;
           }
 
-          // ===== 新词：normalizeWord 后追加 =====
           const normalized = normalizeWord(w);
           target.words.push(normalized);
           wordMap.set(t, normalized);
@@ -222,8 +200,6 @@ function doImportMerge(incoming) {
       }
     });
 
-    // ★ 同步 listVisibleSet：新增章节默认未选中，不影响；
-    //    但若原有 selected 被外部数据覆盖，需要重建
     if (typeof initListVisibleSet === "function") initListVisibleSet();
 
     saveData();
@@ -263,15 +239,6 @@ function doImportMerge(incoming) {
         "</ul>";
     }
 
-    console.log("[导入] 准备弹窗", {
-      addedCh,
-      addedWord,
-      mergedWord,
-      skippedWord,
-      filledWord,
-      detailCount: mergeDetail.length,
-      summary,
-    });
     openModal(
       "导入结果",
       detailHtml +
@@ -279,11 +246,9 @@ function doImportMerge(incoming) {
         '<button class="primary" onclick="closeModal()">知道了</button>' +
         "</div>",
     );
-    console.log("[导入] openModal 已调用");
 
     return false;
   } catch (e) {
-    console.error("[导入] 异常：", e);
     console.error("导入失败：", e);
     toast("导入失败：" + (e && e.message ? e.message : e));
     return false;
@@ -304,26 +269,100 @@ function normalizeWord(w) {
 }
 
 // ===================================================================
-// 四、数据同步
+// 三、数据同步（仅点击按钮 + 确认后触发）
 // ===================================================================
 function syncFromCloud() {
-  openConfirmModal({
-    title: "☁️ 云端同步",
-    body:
-      '<div style="color:var(--text-soft);font-size:14px;line-height:1.7;">' +
-      '将从 <b style="color:var(--primary);">云端</b> 同步词库：<br>' +
+  const initialMode =
+    typeof getSyncMode === "function" ? getSyncMode() : "merge";
+
+  const descByMode = {
+    merge:
       "· 本地独有的章节和单词会保留<br>" +
       "· 云端独有的章节会追加<br>" +
-      "· 同名章节按单词去重合并" +
-      "</div>" +
-      '<div style="margin-top:10px;padding:8px 12px;background:var(--primary-light);' +
-      'border-radius:8px;color:var(--primary);font-size:13px;font-weight:600;">' +
-      "📡 此操作需要网络连接" +
-      "</div>",
-    danger: true,
+      "· 同名章节按单词去重合并<br>" +
+      "· 用户删除过的章节不会复活",
+    cloud_first:
+      "· <b>云端为权威</b>，用云端覆盖本地同名章节<br>" +
+      "· 本地独有章节保留<br>" +
+      "· 学习记录（对/错/均分）保留",
+    cloud_replace:
+      "· <b>云端完全替换本地</b><br>" +
+      "· 本地独有的章节和单词会被<b style='color:var(--danger);'>删除</b><br>" +
+      "· 学习记录保留（按单词 text 匹配）<br>" +
+      '<b style="color:var(--danger);">⚠️ 此操作不可撤销</b>',
+    pull_only: "· 只拉取云端有、本地没有的章节<br>" + "· 本地已有章节一律不动",
+  };
+
+  const body =
+    '<div style="color:var(--text-soft);font-size:14px;line-height:1.7;">' +
+    "选择同步方式：<br>" +
+    '<div id="syncModeOptions" style="margin:8px 0 4px;"></div>' +
+    '<div id="syncModeDesc" style="margin-top:8px;color:var(--text-soft);font-size:13px;line-height:1.7;">' +
+    (descByMode[initialMode] || "") +
+    "</div>" +
+    "</div>" +
+    '<div style="margin-top:10px;padding:8px 12px;background:var(--primary-light);' +
+    'border-radius:8px;color:var(--primary);font-size:13px;font-weight:600;">' +
+    "📡 此操作需要网络连接" +
+    "</div>";
+
+  openConfirmModal({
+    title: "☁️ 云端同步",
+    body: body,
+    danger: initialMode === "cloud_replace",
     okTitle: "同步",
     onOk: doSyncFromCloud,
+    onOpened: function () {
+      // ★ 弹窗打开后渲染 custom-select
+      const box = document.getElementById("syncModeOptions");
+      if (!box || typeof _buildCustomSelect !== "function") return;
+
+      const cur = initialMode;
+      box.innerHTML = _buildCustomSelect(
+        "syncModeSelect",
+        cur,
+        SYNC_MODE_LABELS[cur] || "合并更新（默认）",
+        SYNC_MODE_DEF,
+        "pickSyncModeInConfirm",
+      );
+    },
   });
+}
+
+function pickSyncModeInConfirm(value) {
+  setCustomSelectValue("syncModeSelect", value);
+  _closeAllCustomSelects();
+
+  const descByMode = {
+    merge:
+      "· 本地独有的章节和单词会保留<br>" +
+      "· 云端独有的章节会追加<br>" +
+      "· 同名章节按单词去重合并<br>" +
+      "· 用户删除过的章节不会复活",
+    cloud_first:
+      "· <b>云端为权威</b>，用云端覆盖本地同名章节<br>" +
+      "· 本地独有章节保留<br>" +
+      "· 学习记录（对/错/均分）保留",
+    cloud_replace:
+      "· <b>云端完全替换本地</b><br>" +
+      "· 本地独有的章节和单词会被<b style='color:var(--danger);'>删除</b><br>" +
+      "· 学习记录保留（按单词 text 匹配）<br>" +
+      '<b style="color:var(--danger);">⚠️ 此操作不可撤销</b>',
+    pull_only: "· 只拉取云端有、本地没有的章节<br>" + "· 本地已有章节一律不动",
+  };
+
+  const descEl = document.getElementById("syncModeDesc");
+  if (descEl) descEl.innerHTML = descByMode[value] || "";
+
+  // 危险色：cloud_replace 时 √ 按钮变红
+  const modalBody = document.getElementById("modalBody");
+  const saveBtn = modalBody && modalBody.querySelector(".modal-save");
+  if (saveBtn) {
+    saveBtn.classList.toggle("modal-save-danger", value === "cloud_replace");
+  }
+
+  // 立即写入 config（关弹窗再同步也用最新的）
+  setConfig(KEY_SYNC_MODE, value);
 }
 
 async function doSyncFromCloud() {
@@ -353,49 +392,185 @@ async function doSyncFromCloud() {
   }
 }
 
-// 把共享词库合并进 wordGoblinLocal（保留 selected / 统计）
+// 把共享词库合并进 wordGoblinLocal
+//   ★ 按 config.syncMode 走不同策略
 async function mergeCloudIntoLocal(cloud) {
+  const mode = typeof getSyncMode === "function" ? getSyncMode() : "merge";
   const localChapters = await dbGetAllChapters();
   const localWords = await dbGetAllWords();
   const localChapterByName = new Map(localChapters.map((c) => [c.name, c]));
 
+  const deletedUids = loadDeletedUids();
+  let nextOrder =
+    localChapters.reduce((max, c) => Math.max(max, c.order || 0), -1) + 1;
+
+  // 云端所有章节 id（用于 cloud_replace 删除本地独有）
+  const cloudChapterNames = new Set();
+
+  // ========== 步骤 1：按策略处理每个云端章节 ==========
   for (const cch of cloud.chapters || []) {
+    const cloudId = cch.id || "ch_shared_" + encodeURIComponent(cch.name);
+    cloudChapterNames.add(cch.name);
+
     const localCh = localChapterByName.get(cch.name);
-    const chapterId = localCh ? localCh.id : genId("ch_");
 
-    await dbPutChapter({
-      id: chapterId,
-      name: cch.name,
-      selected: localCh ? !!localCh.selected : false,
-      dictLang: normalizeDictLang(
-        typeof cch.dictLang === "number"
-          ? cch.dictLang
-          : localCh
-            ? localCh.dictLang
-            : DICT_LANG.EN,
-      ),
-      order: localCh ? localCh.order : 0,
-    });
-
-    const localWordsOfCh = localCh
-      ? localWords.filter((w) => w.chapterId === localCh.id)
-      : [];
-    const localWordByText = new Map(localWordsOfCh.map((w) => [w.text, w]));
-
-    for (const cw of cch.words || []) {
-      const lw = localWordByText.get(cw.text);
-      await dbPutWord({
-        id: lw ? lw.id : genId("w_"),
-        chapterId,
-        text: cw.text,
-        meaning: cw.meaning,
-        wrongCount: lw ? lw.wrongCount : 0,
-        correctCount: lw ? lw.correctCount : 0,
-        lastErrorDate: lw ? lw.lastErrorDate : "",
-        lastCorrectDate: lw ? lw.lastCorrectDate : "",
-        scoreCount: lw ? lw.scoreCount : 0,
-        scoreSum: lw ? lw.scoreSum : 0,
-      });
+    // ---- 策略：仅新增 ----
+    if (mode === "pull_only") {
+      if (localCh) continue; // 已有 → 不动
+      if (deletedUids.has(cloudId)) continue; // 黑名单 → 跳过
+      await _insertCloudChapter(cch, cloudId, nextOrder++);
+      continue;
     }
+
+    // ---- 策略：云端覆盖（本地独有也删） ----
+    if (mode === "cloud_replace") {
+      const chapterId = localCh ? localCh.id : genId("ch_");
+      await _overwriteChapterFromCloud(cch, chapterId, localCh, nextOrder++);
+      continue;
+    }
+
+    // ---- 策略：云端优先 / 合并 ----
+    if (!localCh) {
+      // 本地没有
+      if (deletedUids.has(cloudId)) continue; // 黑名单
+      await _insertCloudChapter(cch, cloudId, nextOrder++);
+    } else {
+      // 本地已有 → 按策略
+      if (mode === "cloud_first") {
+        // 用云端覆盖本地章节属性 + 单词属性
+        await _overwriteChapterFromCloud(
+          cch,
+          localCh.id,
+          localCh,
+          localCh.order,
+        );
+      } else {
+        // merge：保留本地，补齐云端独有单词
+        await _mergeChapterWords(cch, localCh);
+      }
+    }
+  }
+
+  // ========== 步骤 2：cloud_replace 删除本地独有章节 ==========
+  if (mode === "cloud_replace") {
+    for (const lc of localChapters) {
+      if (!cloudChapterNames.has(lc.name)) {
+        await dbDeleteChapter(lc.id);
+        addDeletedUid(lc.id); // 记黑名单，防止下次又拉
+        const ws = await dbGetWordsByChapter(lc.id);
+        for (const w of ws) {
+          await dbDeleteWord(w.id);
+          addDeletedUid(w.id);
+        }
+      }
+    }
+  }
+}
+
+/* ---------- 内部辅助 ---------- */
+
+// 插入一个云端章节（本地完全没有）
+async function _insertCloudChapter(cch, cloudId, order) {
+  await dbPutChapter({
+    id: cloudId,
+    name: cch.name,
+    selected: false,
+    dictLang: normalizeDictLang(
+      typeof cch.dictLang === "number" ? cch.dictLang : DICT_LANG.EN,
+    ),
+    order,
+  });
+  for (const cw of cch.words || []) {
+    await dbPutWord({
+      id: cw.id || genId("w_"),
+      chapterId: cloudId,
+      text: cw.text,
+      meaning: cw.meaning,
+      wrongCount: 0,
+      correctCount: 0,
+      lastErrorDate: "",
+      lastCorrectDate: "",
+      scoreCount: 0,
+      scoreSum: 0,
+    });
+  }
+}
+
+// 用云端完全覆盖某个本地章节（章节属性 + 单词）
+async function _overwriteChapterFromCloud(cch, chapterId, localCh, order) {
+  await dbPutChapter({
+    id: chapterId,
+    name: cch.name,
+    selected: localCh ? !!localCh.selected : false,
+    dictLang: normalizeDictLang(
+      typeof cch.dictLang === "number"
+        ? cch.dictLang
+        : localCh
+          ? localCh.dictLang
+          : DICT_LANG.EN,
+    ),
+    order: localCh ? localCh.order : order,
+  });
+
+  // 本地已有单词按 text 索引，用于复用 id + 统计
+  const localWordsOfCh = localCh ? await dbGetWordsByChapter(localCh.id) : [];
+  const localWordByText = new Map(localWordsOfCh.map((w) => [w.text, w]));
+  const keptIds = new Set();
+
+  for (const cw of cch.words || []) {
+    const lw = localWordByText.get(cw.text);
+    const wid = lw ? lw.id : cw.id || genId("w_");
+    keptIds.add(wid);
+    await dbPutWord({
+      id: wid,
+      chapterId,
+      text: cw.text,
+      meaning: cw.meaning || "",
+      // 统计字段：本地有就保留，没有就清零
+      wrongCount: lw ? lw.wrongCount : 0,
+      correctCount: lw ? lw.correctCount : 0,
+      lastErrorDate: lw ? lw.lastErrorDate : "",
+      lastCorrectDate: lw ? lw.lastCorrectDate : "",
+      scoreCount: lw ? lw.scoreCount : 0,
+      scoreSum: lw ? lw.scoreSum : 0,
+    });
+  }
+
+  // 本地独有单词 → 删除
+  for (const lw of localWordsOfCh) {
+    if (!keptIds.has(lw.id)) {
+      await dbDeleteWord(lw.id);
+      addDeletedUid(lw.id);
+    }
+  }
+}
+
+// 合并策略：保留本地，补齐云端独有单词
+async function _mergeChapterWords(cch, localCh) {
+  const localWordsOfCh = await dbGetWordsByChapter(localCh.id);
+  const localWordByText = new Map(localWordsOfCh.map((w) => [w.text, w]));
+
+  for (const cw of cch.words || []) {
+    const lw = localWordByText.get(cw.text);
+    if (lw) {
+      // 只补空 meaning
+      if (!lw.meaning && cw.meaning) {
+        await dbPutWord({ ...lw, meaning: cw.meaning });
+      }
+      continue;
+    }
+    // 本地没有 → 补
+    await dbPutWord({
+      id: cw.id || genId("w_"),
+      chapterId: localCh.id,
+      text: cw.text,
+      meaning: cw.meaning || "",
+      wrongCount: 0,
+      correctCount: 0,
+      lastErrorDate: "",
+      lastCorrectDate: "",
+      scoreCount: 0,
+      scoreSum: 0,
+    });
   }
 }

@@ -160,8 +160,16 @@ function toggleSelectAllChapters(checked) {
     return;
   }
 
-  visibleList.forEach(({ ci }) => {
+  visibleList.forEach(({ ch, ci }) => {
     data.chapters[ci].selected = !!checked;
+
+    if (checked) {
+      listVisibleSet.add(ch.name);
+      tempVisibleChapters.delete(ci);
+    } else {
+      listVisibleSet.delete(ch.name);
+      tempVisibleChapters.delete(ci);
+    }
   });
 
   saveData();
@@ -496,18 +504,17 @@ function deleteChapter(ci) {
     danger: true, // ★ √ 按钮变红
     okTitle: "删除",
     onOk: function () {
-      doDeleteChapter(ci);
+      return doDeleteChapter(ci);
     },
   });
 }
 
 function doDeleteChapter(ci) {
   const ch = data.chapters[ci];
-  if (!ch) return;
+  if (!ch) return false;
 
   listVisibleSet.delete(ch.name);
   tempVisibleChapters.clear();
-
   data.chapters.splice(ci, 1);
 
   if (currentChapter >= data.chapters.length) {
@@ -518,7 +525,7 @@ function doDeleteChapter(ci) {
   renderChapterList();
   renderWords();
   updateStats();
-  toast("已删除章节");
+  toast("已删除");
 }
 
 /* =================================================================
