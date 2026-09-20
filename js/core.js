@@ -22,7 +22,7 @@ function normalizeDictLang(v) {
 }
 
 function dictLangLabel(v) {
-  return normalizeDictLang(v) === DICT_LANG.ZH ? "汉语" : "English";
+  return DICT_LANG_LABELS[normalizeDictLang(v)] || DICT_LANG_DEFAULT;
 }
 
 /* =================================================================
@@ -422,9 +422,6 @@ function getDictationSettings() {
 }
 
 function saveDictationSettings() {
-  const modeRadio = document.querySelector('input[name="dictMode"]:checked');
-  const modeEl = $("modeSel");
-
   const obj = {
     intervalSec:
       parseInt($("intervalSec") && $("intervalSec").value, 10) ||
@@ -435,10 +432,8 @@ function saveDictationSettings() {
     repeatIntervalSec:
       parseInt($("repeatIntervalSec") && $("repeatIntervalSec").value, 10) ||
       DICTATION_SETTINGS_DEFAULT.repeatIntervalSec,
-    mode: modeRadio
-      ? parseInt(modeRadio.value, 10) || 0
-      : parseInt(modeEl && modeEl.value, 10) || DICTATION_SETTINGS_DEFAULT.mode,
-    playOrder: config.dictation.playOrder || 0, // ★ 从 config 拿
+    mode: config.dictation.mode || DICT_MODE.ALL,
+    playOrder: config.dictation.playOrder || PLAY_ORDER.SEQ,
   };
   setConfig(KEY_DICTATION, obj);
 }
@@ -449,13 +444,14 @@ function loadDictationSettings() {
   if ($("repeatCount")) $("repeatCount").value = s.repeatCount;
   if ($("repeatIntervalSec"))
     $("repeatIntervalSec").value = s.repeatIntervalSec;
-  if ($("modeSel")) $("modeSel").value = String(s.mode);
-
   if (typeof setCustomSelectValue === "function") {
     if ($("playOrderSelect"))
-      setCustomSelectValue("playOrderSelect", String(s.playOrder || 0));
+      setCustomSelectValue(
+        "playOrderSelect",
+        String(s.playOrder || PLAY_ORDER.SEQ),
+      );
     if ($("dictModeSelect"))
-      setCustomSelectValue("dictModeSelect", String(s.mode || 0));
+      setCustomSelectValue("dictModeSelect", String(s.mode || DICT_MODE.ALL));
   }
 }
 

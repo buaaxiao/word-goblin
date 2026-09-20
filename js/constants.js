@@ -32,6 +32,8 @@ const DICT_LANG_LABELS = Object.freeze(
   Object.fromEntries(DICT_LANG_DEF.map((d) => [d.value, d.label])),
 );
 
+const DICT_LANG_DEFAULT = DICT_LANG_LABELS[DICT_LANG.ZH];
+
 /* =================================================================
  * 默写范围（唯一定义源）
  *   DICT_MODE：代码用
@@ -53,6 +55,8 @@ const DICT_MODE_LABELS = Object.freeze(
   Object.fromEntries(DICT_MODE_DEF.map((d) => [d.value, d.label])),
 );
 
+const DICT_MODE_DEFAULT = DICT_MODE_LABELS[DICT_MODE.ALL];
+
 /* =================================================================
  * 播报顺序（唯一定义源）
  *   代码用 PLAY_ORDER.SEQ / 持久化存数字 / UI 显示 PLAY_ORDER_LABELS
@@ -72,6 +76,8 @@ const PLAY_ORDER = Object.freeze(
 const PLAY_ORDER_LABELS = Object.freeze(
   Object.fromEntries(PLAY_ORDER_DEF.map((d) => [d.value, d.label])),
 );
+
+const PLAY_ORDER_DEFAULT = PLAY_ORDER_LABELS[PLAY_ORDER.SEQ];
 
 /* =================================================================
  * 云端同步策略（唯一定义源）
@@ -98,6 +104,8 @@ const SYNC_MODE = Object.freeze(
 const SYNC_MODE_LABELS = Object.freeze(
   Object.fromEntries(SYNC_MODE_DEF.map((d) => [d.value, d.label])),
 );
+
+const SYNC_MODE_DEFAULT = SYNC_MODE_LABELS[SYNC_MODE.MERGE];
 
 /* =================================================================
  * 数据源（共享词库）
@@ -175,8 +183,8 @@ const KEY_LIST_MODE_MIGRATED = "wordDictation.listModeMigrated.v1";
  * ================================================================= */
 const DICTATION_SETTINGS_DEFAULT = {
   intervalSec: 3,
-  repeatCount: 3,
-  repeatIntervalSec: 2,
+  repeatCount: 2,
+  repeatIntervalSec: 1,
   mode: 0,
   playOrder: 0,
 };

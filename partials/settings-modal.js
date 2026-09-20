@@ -110,7 +110,7 @@ function openSettings() {
     orderBox.innerHTML = _buildCustomSelect(
       "playOrderSelect",
       cur,
-      PLAY_ORDER_LABELS[cur] || "顺序",
+      PLAY_ORDER_LABELS[cur] || PLAY_ORDER_DEFAULT,
       PLAY_ORDER_DEF,
       "pickPlayOrder",
     );
@@ -122,7 +122,7 @@ function openSettings() {
     modeBox.innerHTML = _buildCustomSelect(
       "dictModeSelect",
       cur,
-      DICT_MODE_LABELS[cur] || "全部单词",
+      DICT_MODE_LABELS[cur] || DICT_MODE_DEFAULT,
       DICT_MODE_DEF,
       "pickDictMode",
     );
@@ -134,7 +134,7 @@ function openSettings() {
     langBox.innerHTML = _buildCustomSelect(
       "dictLangSelect",
       cur,
-      DICT_LANG_LABELS[cur] || "汉语",
+      DICT_LANG_LABELS[cur] || DICT_LANG_DEFAULT,
       DICT_LANG_DEF,
       "pickDictLang",
     );

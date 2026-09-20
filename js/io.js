@@ -321,7 +321,7 @@ function syncFromCloud() {
       box.innerHTML = _buildCustomSelect(
         "syncModeSelect",
         cur,
-        SYNC_MODE_LABELS[cur] || "合并更新（默认）",
+        SYNC_MODE_LABELS[cur] || SYNC_MODE_DEFAULT,
         SYNC_MODE_DEF,
         "pickSyncModeInConfirm",
       );

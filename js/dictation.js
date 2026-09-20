@@ -144,15 +144,11 @@ function renderDictMeta() {
 
   const s = getDictationSettings();
   const dl = normalizeDictLang(getDefaultDictLang());
-  const langLabel = dictLangIsChinese(dl) ? "汉语" : "EN";
-
-  const modeLabels = ["全部", "错题", "末错"];
-  const modeLabel = modeLabels[s.mode || 0] || "全部";
-
+  const langLabel = DICT_LANG_LABELS[dl] || DICT_LANG_DEFAULT;
+  const modeLabel =
+    DICT_MODE_LABELS[s.mode || DICT_MODE.ALL] || DICT_MODE_DEFAULT;
   const orderLabel =
-    (typeof PLAY_ORDER_LABELS !== "undefined" &&
-      PLAY_ORDER_LABELS[s.playOrder || 0]) ||
-    "顺序";
+    PLAY_ORDER_LABELS[s.playOrder || PLAY_ORDER.SEQ] || PLAY_ORDER_DEFAULT;
 
   const chip = (k, v) =>
     '<span class="dict-meta-item">' +
@@ -212,8 +208,8 @@ function collectItems() {
     if (!ch.selected) continue;
     for (let wi = 0; wi < ch.words.length; wi++) {
       const w = ch.words[wi];
-      if (dict.mode === 1 && w.wrongCount === 0) continue;
-      if (dict.mode === 2) {
+      if (dict.mode === DICT_MODE.WRONG && w.wrongCount === 0) continue;
+      if (dict.mode === DICT_MODE.LAST_WRONG) {
         const errorNewer =
           !!w.lastErrorDate &&
           (w.lastCorrectDate === "" || w.lastErrorDate > w.lastCorrectDate);
@@ -225,10 +221,11 @@ function collectItems() {
   return items;
 }
 function noItemsMessage() {
-  if (dict.mode === 2)
-    return "没有可播报的单词（所选章节中没有“最后默写错误”的单词）";
-  if (dict.mode === 1) return "没有错题可播报（所选章节中暂无标记错误的单词）";
-  return "请先在“词库”勾选要默写的章节，并确保章节包含单词";
+  if (dict.mode === DICT_MODE.LAST_WRONG)
+    return "没有可播报的单词（所选章节中没有「最后默写错误」的单词）";
+  if (dict.mode === DICT_MODE.WRONG)
+    return "没有错题可播报（所选章节中暂无标记错误的单词）";
+  return "请先在「词库」勾选要默写的章节，并确保章节包含单词";
 }
 function waitResume() {
   return new Promise((resolve) => {
@@ -308,7 +305,7 @@ function startDictation() {
   const dl = normalizeDictLang(getDefaultDictLang());
   dict.speakChinese = dictLangIsChinese(dl);
 
-  dict.mode = s.mode || 0;
+  dict.mode = s.mode || DICT_MODE.ALL;
 
   // 选中章节检查
   const selChs = data.chapters.filter((c) => c.selected);
@@ -958,7 +955,7 @@ function hasItemsToDictate() {
   const s = getDictationSettings();
   const dl = normalizeDictLang(getDefaultDictLang());
   dict.speakChinese = dictLangIsChinese(dl);
-  dict.mode = s.mode || 0;
+  dict.mode = s.mode || DICT_MODE.ALL;
   return collectItems().length > 0;
 }
 
