@@ -8,8 +8,8 @@
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
-  font-weight: 700;
-  font-size: 15px;
+  font-weight: 500;
+  font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

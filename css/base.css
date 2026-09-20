@@ -74,7 +74,7 @@ body {
   background-image: var(--bg-gradient);
   background-attachment: fixed;
   color: var(--text);
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.5;
   padding-bottom: env(safe-area-inset-bottom);
   min-height: 100vh;
@@ -137,7 +137,7 @@ body {
 .appbar h1 {
   margin: 0;
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.5px;
   display: flex;
   align-items: center;
@@ -161,7 +161,7 @@ body {
   border: 1.5px solid rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.15);
   color: #fff;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1;
   cursor: pointer;
   backdrop-filter: blur(6px);
@@ -182,15 +182,15 @@ body {
   border-radius: 20px;
   background: transparent;
   color: #fff;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   white-space: nowrap;
 }
 
 .theme-tag .theme-icon {
-  font-size: 15px;
+  font-size: 14px;
 }
 
 /* ===== 统一新增弹窗的布局辅助 ===== */
@@ -201,7 +201,7 @@ body {
 }
 
 .add-title {
-  font-weight: 600;
+  font-weight: 500;
   margin-bottom: 2px;
 }
 
@@ -231,8 +231,8 @@ body {
   border-radius: var(--radius-sm);
   background: var(--card);
   color: var(--text-soft);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   font-family: inherit;
   cursor: pointer;
   outline: none;
@@ -256,7 +256,7 @@ body {
 }
 
 .data-ops-caret {
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1;
   opacity: 0.7;
   transition: transform 0.18s ease;
@@ -268,7 +268,7 @@ body {
 }
 
 .btn-ico {
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1;
 }
 
@@ -319,8 +319,8 @@ body {
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-soft);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 400;
   box-shadow: none;
   transform: none;
 }
@@ -353,8 +353,8 @@ body.dark .data-ops-panel {
   flex-shrink: 0;
   padding: 3px 10px;
   border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 500;
   letter-spacing: 0.2px;
   border: 1px solid var(--border-strong);
   background: var(--card);
@@ -425,7 +425,7 @@ main {
 
 .stat-num {
   font-size: 22px;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--primary);
   line-height: 1.1;
   letter-spacing: -0.5px;
@@ -448,7 +448,7 @@ main {
   font-size: 11.5px;
   color: var(--muted);
   margin-top: 3px;
-  font-weight: 500;
+  font-weight: 400;
   white-space: nowrap;
 }
 
@@ -481,7 +481,7 @@ main {
 
 .collapse-header h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--text);
   flex: 1;
@@ -489,17 +489,17 @@ main {
 
 .collapse-header .collapse-badge {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   background: var(--card-soft);
   padding: 2px 10px;
   border-radius: 20px;
-  font-weight: 500;
+  font-weight: 400;
   white-space: nowrap;
   transition: background-color 0.3s;
 }
 
 .collapse-chevron {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--muted);
   flex-shrink: 0;
   width: 16px;
@@ -513,7 +513,7 @@ main {
 }
 
 .collapse-arrow {
-  font-size: 15px;
+  font-size: 14px;
   flex-shrink: 0;
   width: 20px;
   text-align: center;
@@ -558,7 +558,7 @@ main {
   left: 12px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 15px;
+  font-size: 14px;
   pointer-events: none;
   opacity: 0.5;
 }
@@ -575,7 +575,7 @@ main {
   border: none;
   background: var(--border);
   color: var(--text-soft);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1;
   display: none;
   align-items: center;
@@ -600,7 +600,7 @@ mark.hl {
   color: var(--highlight-text);
   padding: 0 2px;
   border-radius: 3px;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* ===== 表单元素 ===== */
@@ -615,8 +615,8 @@ mark.hl {
 .row label {
   white-space: nowrap;
   color: var(--text-soft);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 400;
 }
 
 input[type="text"],
@@ -627,7 +627,7 @@ select,
   padding: 10px 14px;
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
-  font-size: 15px;
+  font-size: 14px;
   background: var(--card);
   color: var(--text);
   transition: all 0.2s ease;
@@ -669,8 +669,8 @@ button {
   border-radius: var(--radius-sm);
   background: var(--card);
   color: var(--text-soft);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 500;
   font-family: inherit;
   touch-action: manipulation;
   cursor: pointer;
@@ -742,7 +742,7 @@ button:disabled {
 
 .icon-btn {
   padding: 5px 8px;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
   border-radius: 6px;
   border-color: transparent;
@@ -761,7 +761,7 @@ button:disabled {
 /* ===== 空状态 ===== */
 .empty-state {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
   text-align: center;
   padding: 24px 12px;
 }
@@ -822,12 +822,12 @@ button:disabled {
 
 .sortable.sorted {
   color: var(--primary);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .sortable .sort-icon {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 600;
   color: var(--primary);
   opacity: 0.9;
   margin-left: 2px;
