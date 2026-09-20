@@ -258,8 +258,6 @@
  * 单词列表标题：单行显示，超出省略
  * ================================================================= */
 #wordChapterTitle {
-  font-size: 16px;
-  font-weight: 600;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
