@@ -283,7 +283,7 @@ async function doClearHistory() {
     renderChart();
     toast("历史已清空");
   } catch (e) {
-    console.error("清空历史失败：", e);
+    Log.error("reports", "清空历史失败：", e);
     toast("清空历史失败：" + (e && e.message ? e.message : e));
   }
 }

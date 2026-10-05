@@ -5,16 +5,11 @@
 
 const fs = require("fs");
 const path = require("path");
+const { randomUUID } = require("crypto");
 
 const DATA_DIR = "data";
 const DATA_FILE = "data.json";
 const FILE = path.join(__dirname, DATA_DIR, DATA_FILE);
-
-function genId(prefix) {
-  return (
-    prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
-  );
-}
 
 function main() {
   const raw = fs.readFileSync(FILE, "utf8");
@@ -25,12 +20,12 @@ function main() {
 
   (data.chapters || []).forEach((ch) => {
     if (!ch.id) {
-      ch.id = genId("ch_");
+      ch.id = randomUUID();
       chCount++;
     }
     (ch.words || []).forEach((w) => {
       if (!w.id) {
-        w.id = genId("w_");
+        w.id = randomUUID();
         wCount++;
       }
     });

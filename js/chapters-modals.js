@@ -215,7 +215,7 @@ function addChapterFromModal() {
     if (inp) inp.focus();
     toast("✅ 已添加章节：" + name);
   } catch (e) {
-    console.error("新增章节失败：", e);
+    Log.error("chapters", "新增章节失败：", e);
     toast("❌ 添加失败：" + (e && e.message ? e.message : e));
   }
 }
@@ -257,7 +257,7 @@ function addWordFromModal() {
     if (t) t.focus();
     toast("✅ 已添加单词：" + text);
   } catch (e) {
-    console.error("新增单词失败：", e);
+    Log.error("chapters", "新增单词失败：", e);
     toast("❌ 添加失败：" + (e && e.message ? e.message : e));
   }
 }
@@ -305,13 +305,14 @@ function doRenameChapter(ci) {
   ch.name = newName;
 
   try {
+    Log.info("chapters", "修改章节名称：「" + oldName + "」→「" + newName + "」");
     saveData();
     renderChapterList();
     renderWords();
     toast("✅ 已修改章节：" + newName);
     return true;
   } catch (e) {
-    console.error("修改章节失败：", e);
+    Log.error("chapters", "修改章节失败：", e);
     toast("❌ 修改失败：" + (e && e.message ? e.message : e));
     return false;
   }

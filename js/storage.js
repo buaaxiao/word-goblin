@@ -55,15 +55,20 @@ let currentChapter = 0;
  * 一、首次迁移：localStorage v1 → IndexedDB（旧数据自动生成 uid）
  * ================================================================= */
 async function migrateFromLocalStorage() {
-  if (localStorage.getItem(MIGRATED_FLAG) === "1") return;
+  if (localStorage.getItem(MIGRATED_FLAG) === "1") {
+    Log.debug("storage", "旧数据已迁移过，跳过 localStorage → IDB 迁移");
+    return;
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY_OLD);
     if (raw) {
+      Log.info("storage", "检测到旧 localStorage 数据，开始迁移到 IDB …");
       const old = JSON.parse(raw);
       if (old && Array.isArray(old.chapters)) {
         let order = 0;
+        let wordTotal = 0;
         for (const ch of old.chapters) {
-          const chapterId = ch.id || genId("ch_");
+          const chapterId = ch.id || crypto.randomUUID();
           await dbPutChapter({
             id: chapterId,
             name: ch.name,
@@ -75,7 +80,7 @@ async function migrateFromLocalStorage() {
           });
           for (const w of ch.words || []) {
             await dbPutWord({
-              id: w.id || genId("w_"),
+              id: w.id || crypto.randomUUID(),
               chapterId,
               text: w.text || "",
               meaning: w.meaning || "",
@@ -87,11 +92,12 @@ async function migrateFromLocalStorage() {
               scoreSum: w.scoreSum || 0,
             });
           }
+          wordTotal += (ch.words || []).length;
         }
         if (Array.isArray(old.history)) {
           for (const h of old.history) {
             await dbPutHistory({
-              id: h.id || genId("h_"),
+              id: h.id || crypto.randomUUID(),
               date: h.date || "",
               chapters: h.chapters || "",
               total: h.total || 0,
@@ -100,11 +106,20 @@ async function migrateFromLocalStorage() {
             });
           }
         }
+        Log.info("storage", "迁移完成：章节 " +
+            old.chapters.length +
+            " 个 · 单词 " +
+            wordTotal +
+            " 个 · 历史 " +
+            (old.history || []).length +
+            " 条",);
       }
+    } else {
+      Log.debug("storage", "无旧 localStorage 数据，跳过迁移");
     }
     localStorage.setItem(MIGRATED_FLAG, "1");
   } catch (e) {
-    console.error("迁移旧数据失败：", e);
+    Log.error("storage", "迁移旧数据失败：", e);
   }
 }
 
@@ -112,6 +127,7 @@ async function migrateFromLocalStorage() {
  * 二、加载：只读本地 IndexedDB（云端合并仅在「同步」时）
  * ================================================================= */
 async function loadData() {
+  const t0 = Date.now();
   try {
     // 0. sessionStorage 哨兵（保留：处理未提交的本地写）
     let pending = null;
@@ -119,14 +135,17 @@ async function loadData() {
       const raw = sessionStorage.getItem(PENDING_KEY);
       if (raw) pending = JSON.parse(raw);
     } catch (e) {
-      console.warn("[loadData] 读取 sessionStorage 哨兵失败：", e);
+      Log.warn("loadData", "读取 sessionStorage 哨兵失败：", e);
     }
     if (pending && (pending.chapters || pending.words || pending.history)) {
+      Log.warn("loadData", "检测到未提交的增量哨兵，回写 IDB：",
+        countPending(pending),);
       try {
         await applyPendingToIDB(pending);
         sessionStorage.removeItem(PENDING_KEY);
+        Log.info("loadData", "增量哨兵已回写并清除");
       } catch (e) {
-        console.error("[loadData] 增量哨兵回写 IDB 失败：", e);
+        Log.error("loadData", "增量哨兵回写 IDB 失败：", e);
       }
     }
 
@@ -136,6 +155,12 @@ async function loadData() {
     const localChapters = await dbGetAllChapters();
     const localWords = await dbGetAllWords();
     const localHistory = await dbGetAllHistory();
+    Log.debug("loadData", "IDB 原始数据：章节 " +
+        localChapters.length +
+        " · 单词 " +
+        localWords.length +
+        " · 历史 " +
+        localHistory.length,);
 
     // 单词按章节分组
     const wordsByChapterId = new Map();
@@ -179,9 +204,21 @@ async function loadData() {
       score: h.score || 0,
     }));
 
-    console.log("[loadData] 从本地 IDB 载入", data.chapters.length, "章节");
+    const wordCount = data.chapters.reduce(
+      (n, c) => n + (c.words || []).length,
+      0,
+    );
+    Log.info("loadData", "从本地 IDB 载入完成：章节 " +
+        data.chapters.length +
+        " 个 · 单词 " +
+        wordCount +
+        " 个 · 历史 " +
+        data.history.length +
+        " 条，耗时 " +
+        (Date.now() - t0) +
+        "ms",);
   } catch (e) {
-    console.error("[loadData] 失败：", e);
+    Log.error("loadData", "失败：", e);
   }
 }
 
@@ -226,6 +263,29 @@ async function applyPendingToIDB(pending) {
       await dbPutHistory(pending.history[id]);
     } catch (e) {}
   }
+
+  Log.info("storage", "增量哨兵已应用到 IDB：", countPending(pending));
+}
+
+/** 统计哨兵条目数，仅用于日志输出 */
+function countPending(pending) {
+  const del = (pending && pending.deleted) || {};
+  return {
+    upsert:
+      Object.keys((pending && pending.chapters) || {}).length +
+      "章/" +
+      Object.keys((pending && pending.words) || {}).length +
+      "词/" +
+      Object.keys((pending && pending.history) || {}).length +
+      "历史",
+    deleted:
+      (del.chapters || []).length +
+      "章/" +
+      (del.words || []).length +
+      "词/" +
+      (del.history || []).length +
+      "历史",
+  };
 }
 
 /* =================================================================
@@ -234,6 +294,7 @@ async function applyPendingToIDB(pending) {
  *   ★ 删除时记录 uid 到黑名单；保留时清除黑名单
  * ================================================================= */
 async function saveData() {
+  const t0 = Date.now();
   const changed = {
     chapters: {},
     words: {},
@@ -252,7 +313,7 @@ async function saveData() {
     for (const ch of data.chapters) {
       let id = ch._id;
       if (!id) {
-        id = genId("ch_");
+        id = crypto.randomUUID();
         ch._id = id;
       }
       keptChapterIds.add(id);
@@ -297,7 +358,7 @@ async function saveData() {
       for (const w of ch.words) {
         let id = w._id;
         if (!id) {
-          id = genId("w_");
+          id = crypto.randomUUID();
           w._id = id;
         }
         keptWordIds.add(id);
@@ -339,7 +400,7 @@ async function saveData() {
     for (const h of data.history || []) {
       let id = h._id;
       if (!id) {
-        id = genId("h_");
+        id = crypto.randomUUID();
         h._id = id;
       }
       keptHistoryIds.add(id);
@@ -370,15 +431,40 @@ async function saveData() {
     try {
       sessionStorage.removeItem(PENDING_KEY);
     } catch (e) {}
+
+    const c = Object.keys(changed.chapters).length;
+    const w = Object.keys(changed.words).length;
+    const h = Object.keys(changed.history).length;
+    const d = changed.deleted;
+    if (c || w || h || d.chapters.length || d.words.length || d.history.length) {
+      Log.info("saveData", "增量写库完成：更新 " +
+          c +
+          "章/" +
+          w +
+          "词/" +
+          h +
+          "历史 · 删除 " +
+          d.chapters.length +
+          "章/" +
+          d.words.length +
+          "词/" +
+          d.history.length +
+          "历史，耗时 " +
+          (Date.now() - t0) +
+          "ms",);
+    } else {
+      Log.debug("saveData", "无变化，未写库，耗时 " + (Date.now() - t0) + "ms");
+    }
   } catch (e) {
-    console.error("saveData 失败：", e);
+    Log.error("saveData", "失败：", e);
     try {
       const prev = readPending();
       const merged = mergePending(prev, changed);
       sessionStorage.setItem(PENDING_KEY, JSON.stringify(merged));
-      console.warn("[saveData] 已写入增量哨兵，下次启动会恢复");
+      Log.warn("saveData", "已写入增量哨兵，下次启动会恢复");
+      Log.debug("saveData", "哨兵内容：", countPending(merged));
     } catch (err) {
-      console.error("[saveData] 写增量哨兵失败：", err);
+      Log.error("saveData", "写增量哨兵失败：", err);
     }
   }
 }
@@ -468,6 +554,7 @@ function shallowEqualHistory(a, b) {
  * 七、全清（调试用）
  * ================================================================= */
 async function clearAllData() {
+  Log.warn("storage", "清空全部本地数据（chapters / words / history + 哨兵）");
   await dbClearAll();
   data = { chapters: [], history: [] };
   try {

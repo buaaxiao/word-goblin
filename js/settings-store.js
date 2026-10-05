@@ -20,7 +20,8 @@ function exportSettings() {
       "· 主题颜色模式<br>" +
       "· 报词方式<br>" +
       "· 默写设置（间隔 / 遍数 / 范围 / 顺序）<br>" +
-      "· 列表折叠状态 / 显示模式<br><br>" +
+      "· 列表折叠状态 / 显示模式<br>" +
+      "· 日志级别 / 可导出日志行数<br><br>" +
       "确定导出吗？",
     okTitle: "导出",
     onOk: doExportSettings,
@@ -32,11 +33,19 @@ function doExportSettings() {
     const obj = {
       [KEY_THEME]: config.theme,
       [KEY_DICT_LANG]: String(config.dictLang),
-      [KEY_DICTATION]: JSON.stringify(config.dictation),
+      [KEY_DICTATION_INTERVAL_SEC]: String(config.dictationIntervalSec),
+      [KEY_DICTATION_REPEAT_COUNT]: String(config.dictationRepeatCount),
+      [KEY_DICTATION_REPEAT_INTERVAL_SEC]: String(
+        config.dictationRepeatIntervalSec,
+      ),
+      [KEY_DICTATION_MODE]: String(config.dictationMode),
+      [KEY_DICTATION_PLAY_ORDER]: String(config.dictationPlayOrder),
       [KEY_CHAPTER_COLLAPSED]: config.chapterCollapsed ? "1" : "0",
       [KEY_WORD_COLLAPSED]: config.wordCollapsed ? "1" : "0",
       [KEY_CHAPTER_MODE]: config.chapterMode,
       [KEY_WORD_MODE]: config.wordMode,
+      [KEY_LOG_LEVEL]: config.logLevel,
+      [KEY_LOG_MAX_LINES]: String(config.logMaxLines),
     };
     const payload = {
       version: 1,
@@ -56,9 +65,10 @@ function doExportSettings() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
+    Log.info("settings", "已导出设置文件，共 " + SETTINGS_KEYS.length + " 项");
     if (typeof toast === "function") toast("已导出设置");
   } catch (e) {
-    console.error("导出设置失败：", e);
+    Log.error("settings", "导出设置失败：", e);
     if (typeof toast === "function")
       toast("导出设置失败：" + (e && e.message ? e.message : e));
   }
@@ -106,7 +116,7 @@ function importSettings() {
           doApplyImportedSettings(obj);
         }
       } catch (err) {
-        console.error("导入设置失败：", err);
+        Log.error("settings", "导入设置文件失败：", err);
         if (typeof toast === "function")
           toast("导入设置失败：" + (err && err.message ? err.message : err));
       }
@@ -135,6 +145,12 @@ function doApplyImportedSettings(obj) {
       applied.push(label);
     }
 
+    Log.info("settings", "导入设置：应用 " +
+        applied.length +
+        " 项 · 跳过 " +
+        skipped.length +
+        " 项",);
+
     // 应用 UI
     if (typeof loadTheme === "function") loadTheme();
     if (typeof loadCollapseState === "function") loadCollapseState();
@@ -142,6 +158,8 @@ function doApplyImportedSettings(obj) {
     if (typeof applyModesUI === "function") applyModesUI();
     if (typeof renderChapterList === "function") renderChapterList();
     if (typeof renderWords === "function") renderWords();
+    // ★ 导入可能包含日志配置，立即应用到运行时
+    if (typeof applyLogConfig === "function") applyLogConfig();
 
     // ===== 结果弹窗 =====
     const summary = "✅ 已导入 " + applied.length + " 项设置";
@@ -174,7 +192,7 @@ function doApplyImportedSettings(obj) {
     // ★ 阻止 _wireModal 里的 closeModal() 关掉刚打开的弹窗
     return false;
   } catch (err) {
-    console.error("应用导入设置失败：", err);
+    Log.error("settings", "应用导入设置失败：", err);
     toast("应用导入设置失败：" + (err && err.message ? err.message : err));
     return false;
   }

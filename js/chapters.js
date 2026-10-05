@@ -172,6 +172,12 @@ function toggleSelectAllChapters(checked) {
     }
   });
 
+  Log.info("chapters", "表头" +
+      (checked ? "全选" : "取消全选") +
+      "：" +
+      visibleList.length +
+      " 个章节",);
+
   saveData();
   renderChapterList();
   renderWords();
@@ -412,6 +418,8 @@ function performReorder(srcIndex, targetIndex, position) {
   // ★ 手动拖拽后，取消排序状态（避免显示顺序与 data 顺序不一致的困惑）
   chapterSort = null;
 
+  Log.info("chapters", "章节拖拽排序：" + srcIndex + " → " + insertIndex);
+
   saveData();
   renderChapterList();
   renderWords();
@@ -434,6 +442,8 @@ function selectChapter(ci) {
     tempVisibleChapters.delete(ci);
   }
 
+  Log.debug("chapters", "点击章节「" + ch.name + "」→ " + (ch.selected ? "选中" : "取消"));
+
   saveData();
   renderChapterList();
   renderWords();
@@ -451,6 +461,8 @@ function toggleChapter(ci, checked) {
     listVisibleSet.delete(ch.name); // ★ 从可见集合移除
     tempVisibleChapters.delete(ci); // ★ 也不留临时可见
   }
+
+  Log.debug("chapters", "复选章节「" + ch.name + "」→ " + (checked ? "选中" : "取消"));
 
   saveData();
   renderChapterList();
@@ -472,12 +484,15 @@ function addChapter(name) {
     return;
   }
   data.chapters.push({
-    _id: genId("ch_"), // ★ 新增
+    _id: crypto.randomUUID(), // ★ 新增
     name: name,
     selected: false,
     words: [],
   });
   currentChapter = data.chapters.length - 1;
+
+  Log.info("chapters", "新增章节「" + name + "」，当前共 " + data.chapters.length + " 个",);
+
   saveData();
   renderChapterList();
   renderWords();
@@ -513,6 +528,9 @@ function doDeleteChapter(ci) {
   const ch = data.chapters[ci];
   if (!ch) return false;
 
+  const deletedName = ch.name;
+  const deletedWordCount = (ch.words || []).length;
+
   listVisibleSet.delete(ch.name);
   tempVisibleChapters.clear();
   data.chapters.splice(ci, 1);
@@ -520,6 +538,14 @@ function doDeleteChapter(ci) {
   if (currentChapter >= data.chapters.length) {
     currentChapter = Math.max(0, data.chapters.length - 1);
   }
+
+  Log.info("chapters", "删除章节「" +
+      deletedName +
+      "」（含 " +
+      deletedWordCount +
+      " 个单词），剩余 " +
+      data.chapters.length +
+      " 个章节",);
 
   saveData();
   renderChapterList();

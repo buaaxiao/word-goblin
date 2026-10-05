@@ -44,23 +44,34 @@ function exportData() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
+    Log.info("io", "已导出数据文件：" +
+        filename +
+        "（章节 " +
+        (data.chapters || []).length +
+        " 个 · 历史 " +
+        (data.history || []).length +
+        " 条）",);
     toast("已导出：" + filename);
   } catch (e) {
-    console.error("导出失败：", e);
+    Log.error("io", "导出失败：", e);
     toast("导出失败：" + (e && e.message ? e.message : e));
   }
 }
 
 function formatTimestamp(d) {
-  const pad = (n) => (n < 10 ? "0" + n : "" + n);
+  const parts = new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const v = (type) => parts.find((p) => p.type === type)?.value ?? "";
   return (
-    d.getFullYear() +
-    pad(d.getMonth() + 1) +
-    pad(d.getDate()) +
-    "-" +
-    pad(d.getHours()) +
-    pad(d.getMinutes()) +
-    pad(d.getSeconds())
+    v("year") + v("month") + v("day") + "-" +
+    v("hour") + v("minute") + v("second")
   );
 }
 
@@ -85,9 +96,15 @@ function importData() {
         const parsed = JSON.parse(raw);
         const incoming = parsed && parsed.data ? parsed.data : parsed;
         if (!incoming || !Array.isArray(incoming.chapters)) {
+          Log.warn("io", "导入文件格式不正确：缺少 chapters");
           toast("文件格式不正确：缺少 chapters");
           return;
         }
+        Log.info("io", "选择导入文件：" +
+            file.name +
+            "，含 " +
+            incoming.chapters.length +
+            " 个章节",);
 
         openConfirmModal({
           title: "导入数据",
@@ -105,13 +122,14 @@ function importData() {
           },
         });
       } catch (err) {
-        console.error("解析失败：", err);
+        Log.error("io", "导入文件解析失败：", err);
         toast("文件解析失败：" + (err && err.message ? err.message : err));
       } finally {
         input.value = "";
       }
     };
     reader.onerror = function () {
+      Log.error("io", "读取导入文件失败");
       toast("读取文件失败");
       input.value = "";
     };
@@ -202,6 +220,18 @@ function doImportMerge(incoming) {
 
     if (typeof initListVisibleSet === "function") initListVisibleSet();
 
+    Log.info("io", "导入合并完成：新增章节 " +
+        addedCh +
+        " 个 · 新增单词 " +
+        addedWord +
+        " 个 · 合并单词 " +
+        mergedWord +
+        " 个 · 跳过重复 " +
+        skippedWord +
+        " 个 · 补全释义 " +
+        filledWord +
+        " 个",);
+
     saveData();
     renderChapterList();
     renderWords();
@@ -249,7 +279,7 @@ function doImportMerge(incoming) {
 
     return false;
   } catch (e) {
-    console.error("导入失败：", e);
+    Log.error("io", "导入失败：", e);
     toast("导入失败：" + (e && e.message ? e.message : e));
     return false;
   }
@@ -321,7 +351,7 @@ function syncFromCloud() {
       box.innerHTML = _buildCustomSelect(
         "syncModeSelect",
         cur,
-        SYNC_MODE_LABELS[cur] || SYNC_MODE_DEFAULT,
+        SYNC_MODE_LABELS[cur] || SYNC_MODE_LABELS[SYNC_MODE_DEF[0].value],
         SYNC_MODE_DEF,
         "pickSyncModeInConfirm",
       );
@@ -367,14 +397,20 @@ function pickSyncModeInConfirm(value) {
 
 async function doSyncFromCloud() {
   if (location.protocol === "file:") {
+    Log.warn("io", "file:// 协议下不支持云端同步");
     toast("本地文件模式下不支持同步，请用 HTTP 服务器访问");
     return;
   }
+
+  const t0 = Date.now();
+  const mode = typeof getSyncMode === "function" ? getSyncMode() : "merge";
+  Log.info("io", "开始云端同步，策略 = " + mode + "，数据源 = " + DATA_URL);
 
   try {
     const res = await fetch(getDataUrl(), { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const cloud = await res.json();
+    Log.info("io", "云端数据已拉取：章节 " + ((cloud && cloud.chapters) || []).length + " 个",);
 
     await mergeCloudIntoLocal(cloud);
     await loadData();
@@ -385,9 +421,14 @@ async function doSyncFromCloud() {
     if (typeof updateChapterHeaderCheckbox === "function")
       updateChapterHeaderCheckbox();
 
+    Log.info("io", "云端同步完成，策略 = " +
+        mode +
+        "，耗时 " +
+        (Date.now() - t0) +
+        "ms",);
     toast("同步完成");
   } catch (e) {
-    console.error("同步失败：", e);
+    Log.error("io", "同步失败：", e);
     toast("同步失败：" + (e && e.message ? e.message : e));
   }
 }
@@ -424,7 +465,7 @@ async function mergeCloudIntoLocal(cloud) {
 
     // ---- 策略：云端覆盖（本地独有也删） ----
     if (mode === "cloud_replace") {
-      const chapterId = localCh ? localCh.id : genId("ch_");
+      const chapterId = localCh ? localCh.id : crypto.randomUUID();
       await _overwriteChapterFromCloud(cch, chapterId, localCh, nextOrder++);
       continue;
     }
@@ -465,6 +506,14 @@ async function mergeCloudIntoLocal(cloud) {
       }
     }
   }
+
+  Log.info("io", "mergeCloudIntoLocal 完成：策略 " +
+      mode +
+      " · 云端章节 " +
+      ((cloud && cloud.chapters) || []).length +
+      " 个 · 本地原有章节 " +
+      localChapters.length +
+      " 个",);
 }
 
 /* ---------- 内部辅助 ---------- */
@@ -482,7 +531,7 @@ async function _insertCloudChapter(cch, cloudId, order) {
   });
   for (const cw of cch.words || []) {
     await dbPutWord({
-      id: cw.id || genId("w_"),
+      id: cw.id || crypto.randomUUID(),
       chapterId: cloudId,
       text: cw.text,
       meaning: cw.meaning,
@@ -519,7 +568,7 @@ async function _overwriteChapterFromCloud(cch, chapterId, localCh, order) {
 
   for (const cw of cch.words || []) {
     const lw = localWordByText.get(cw.text);
-    const wid = lw ? lw.id : cw.id || genId("w_");
+    const wid = lw ? lw.id : cw.id || crypto.randomUUID();
     keptIds.add(wid);
     await dbPutWord({
       id: wid,
@@ -561,7 +610,7 @@ async function _mergeChapterWords(cch, localCh) {
     }
     // 本地没有 → 补
     await dbPutWord({
-      id: cw.id || genId("w_"),
+      id: cw.id || crypto.randomUUID(),
       chapterId: localCh.id,
       text: cw.text,
       meaning: cw.meaning || "",

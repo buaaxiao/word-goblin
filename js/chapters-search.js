@@ -370,13 +370,17 @@ function initChapterSearchHint() {
   startChapterSearchHintTyper();
 }
 
-// 若章节列表可见集合非空，则自动展开章节列表
+// 若章节列表可见集合非空，则自动展开「章节栏」与「单词栏」
+//   搜索栏勾选章节后需立即看到章节明细与对应单词，故两栏一并展开。
+//   折叠状态以 config.chapterCollapsed / config.wordCollapsed 为准（core.js）。
 function autoExpandChapterListIfAny() {
   if (listVisibleSet.size === 0 && tempVisibleChapters.size === 0) return;
-  if (typeof collapseState === "undefined") return;
-  if (collapseState.chapter === false) return;
 
-  collapseState.chapter = false;
+  // 两栏都已展开 → 无需处理
+  if (!config.chapterCollapsed && !config.wordCollapsed) return;
+
+  config.chapterCollapsed = false;
+  config.wordCollapsed = false;
   if (typeof saveCollapseState === "function") saveCollapseState();
   if (typeof applyCollapseState === "function") applyCollapseState();
 }

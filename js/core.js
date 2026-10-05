@@ -102,22 +102,8 @@ function loadLangSelSetting() {
  * 折叠状态（config.chapterCollapsed / config.wordCollapsed）
  * ================================================================= */
 function loadCollapseState() {
-  // config 已在 loadConfigFromStorage 里初始化，这里只做旧键一次性迁移
-  try {
-    if (localStorage.getItem(KEY_COLLAPSE_MIGRATED) !== "1") {
-      const old = localStorage.getItem(KEY_COLLAPSE_OLD);
-      if (old) {
-        const obj = JSON.parse(old);
-        if (typeof obj.chapter === "boolean") {
-          setConfig(KEY_CHAPTER_COLLAPSED, obj.chapter);
-        }
-        if (typeof obj.word === "boolean") {
-          setConfig(KEY_WORD_COLLAPSED, obj.word);
-        }
-      }
-      localStorage.setItem(KEY_COLLAPSE_MIGRATED, "1");
-    }
-  } catch (e) {}
+  // 旧键（wordDictation.collapse.v4）一次性迁移已完成，
+  // 折叠状态现在统一由 loadConfigFromStorage 从 settings 仓库恢复。
 }
 
 function saveCollapseState() {
@@ -199,29 +185,8 @@ function toggleSection(which) {
  * 列表显示模式（config.chapterMode / config.wordMode）
  * ================================================================= */
 function loadListMode() {
-  // config 已在 loadConfigFromStorage 里初始化，这里只做旧键一次性迁移
-  try {
-    if (localStorage.getItem(KEY_LIST_MODE_MIGRATED) !== "1") {
-      const old = localStorage.getItem(KEY_LIST_MODE_OLD);
-      if (old) {
-        let v;
-        try {
-          v = JSON.parse(old);
-        } catch (e) {
-          v = old;
-        }
-        if (typeof v === "string") {
-          const m = v === "view" ? "view" : "edit";
-          setConfig(KEY_CHAPTER_MODE, m);
-          setConfig(KEY_WORD_MODE, m);
-        } else if (v && typeof v === "object") {
-          setConfig(KEY_CHAPTER_MODE, v.chapter === "view" ? "view" : "edit");
-          setConfig(KEY_WORD_MODE, v.word === "view" ? "view" : "edit");
-        }
-      }
-      localStorage.setItem(KEY_LIST_MODE_MIGRATED, "1");
-    }
-  } catch (e) {}
+  // 旧键（wordDictation.listMode.v1）一次性迁移已完成，
+  // 列表显示模式现在统一由 loadConfigFromStorage 从 settings 仓库恢复。
 }
 
 function saveListMode() {
@@ -415,31 +380,56 @@ function closeAlert() {
 }
 
 /* =================================================================
- * 默写设置（config.dictation）
+ * 默写设置（5 项独立子设置：config.dictationIntervalSec 等）
  * ================================================================= */
 function getDictationSettings() {
-  return Object.assign({}, config.dictation);
+  return {
+    intervalSec:
+      config.dictationIntervalSec != null
+        ? config.dictationIntervalSec
+        : SETTINGS_DEFAULTS.dictationIntervalSec,
+    repeatCount:
+      config.dictationRepeatCount != null
+        ? config.dictationRepeatCount
+        : SETTINGS_DEFAULTS.dictationRepeatCount,
+    repeatIntervalSec:
+      config.dictationRepeatIntervalSec != null
+        ? config.dictationRepeatIntervalSec
+        : SETTINGS_DEFAULTS.dictationRepeatIntervalSec,
+    mode:
+      config.dictationMode != null
+        ? config.dictationMode
+        : SETTINGS_DEFAULTS.dictationMode,
+    playOrder:
+      config.dictationPlayOrder != null
+        ? config.dictationPlayOrder
+        : SETTINGS_DEFAULTS.dictationPlayOrder,
+  };
 }
 
 function saveDictationSettings() {
+  const def = getDictationSettings();
   const obj = {
     intervalSec:
-      parseInt($("intervalSec") && $("intervalSec").value, 10) ||
-      DICTATION_SETTINGS_DEFAULT.intervalSec,
+      parseInt($("intervalSec") && $("intervalSec").value, 10) || def.intervalSec,
     repeatCount:
-      parseInt($("repeatCount") && $("repeatCount").value, 10) ||
-      DICTATION_SETTINGS_DEFAULT.repeatCount,
+      parseInt($("repeatCount") && $("repeatCount").value, 10) || def.repeatCount,
     repeatIntervalSec:
       parseInt($("repeatIntervalSec") && $("repeatIntervalSec").value, 10) ||
-      DICTATION_SETTINGS_DEFAULT.repeatIntervalSec,
-    mode: config.dictation.mode || DICT_MODE.ALL,
-    playOrder: config.dictation.playOrder || PLAY_ORDER.SEQ,
+      def.repeatIntervalSec,
+    mode: config.dictationMode != null ? config.dictationMode : def.mode,
+    playOrder:
+      config.dictationPlayOrder != null ? config.dictationPlayOrder : def.playOrder,
   };
-  setConfig(KEY_DICTATION, obj);
+  setConfig(KEY_DICTATION_INTERVAL_SEC, obj.intervalSec);
+  setConfig(KEY_DICTATION_REPEAT_COUNT, obj.repeatCount);
+  setConfig(KEY_DICTATION_REPEAT_INTERVAL_SEC, obj.repeatIntervalSec);
+  setConfig(KEY_DICTATION_MODE, obj.mode);
+  setConfig(KEY_DICTATION_PLAY_ORDER, obj.playOrder);
 }
 
 function loadDictationSettings() {
-  const s = config.dictation;
+  const s = getDictationSettings();
   if ($("intervalSec")) $("intervalSec").value = s.intervalSec;
   if ($("repeatCount")) $("repeatCount").value = s.repeatCount;
   if ($("repeatIntervalSec"))

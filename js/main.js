@@ -40,6 +40,7 @@ function openModal(title, bodyHtml, onOpened) {
   const m = document.getElementById("modal");
   if (!m) return;
   if (!fillModalBody(title, bodyHtml)) return;
+  Log.debug("main", "打开通用弹窗：「" + title + "」");
   openModalEl(m, onOpened);
 }
 
@@ -47,7 +48,7 @@ function openModal(title, bodyHtml, onOpened) {
  * 关闭通用弹窗 #modal
  */
 function closeModal() {
-  console.trace("[closeModal] 被调用");
+  Log.debug("main", "关闭通用弹窗 #modal");
   const m = document.getElementById("modal");
   const b = document.getElementById("modalBody");
   if (m) closeModalEl(m);
@@ -77,6 +78,7 @@ function getFocusable(root) {
  */
 function openModalEl(el, onOpened) {
   if (!el) return;
+  Log.debug("main", "显示弹窗：" + (el.id || el.className));
   __modalFocusStack.push(document.activeElement);
 
   // ★ 锁滚动：只在"第一个弹窗打开"时记录 scrollY，并给 body 加 modal-open
@@ -102,7 +104,7 @@ function openModalEl(el, onOpened) {
       try {
         onOpened(el);
       } catch (e) {
-        console.error("openModalEl onOpened 回调失败：", e);
+        Log.error("main", "openModalEl onOpened 回调失败：", e);
       }
     }
   }, 0);
@@ -110,6 +112,7 @@ function openModalEl(el, onOpened) {
 
 function closeModalEl(el) {
   if (!el) return;
+  Log.debug("main", "隐藏弹窗：" + (el.id || el.className));
   el.classList.add("hidden");
 
   // ★ 所有弹窗都关闭后：解锁 body 滚动，并恢复滚动位置
@@ -231,15 +234,16 @@ function bindGlobalEvents() {
 // 五、安全调用
 // ===================================================================
 function safeCall(name) {
+  Log.debug("main", "safeCall：" + name);
   const fn = window[name];
   if (typeof fn === "function") {
     try {
       fn();
     } catch (e) {
-      console.error("调用 " + name + " 失败：", e);
+      Log.error("main", "调用 " + name + " 失败：", e);
     }
   } else {
-    console.warn("[main.js] 跳过未定义函数：" + name);
+    Log.warn("main", "跳过未定义函数：" + name);
   }
 }
 
@@ -247,7 +251,10 @@ function safeCall(name) {
 // 六、应用初始化
 // ===================================================================
 async function initApp() {
+  const t0 = Date.now();
   try {
+    Log.info("main", "initApp 开始");
+
     // 1. 数据加载（异步）
     if (typeof loadData === "function") await loadData();
 
@@ -257,6 +264,11 @@ async function initApp() {
     }
     if (typeof migrateSettingsToIDB === "function") {
       await migrateSettingsToIDB();
+    }
+
+    // ★ 2.1 应用日志配置（级别 / 可导出日志行数）到运行时
+    if (typeof applyLogConfig === "function") {
+      applyLogConfig();
     }
 
     // 3. 小配置
@@ -281,9 +293,9 @@ async function initApp() {
     if (typeof bindGlobalEvents === "function") bindGlobalEvents();
     if (typeof initChapterSearchHint === "function") initChapterSearchHint();
 
-    console.log("[单词精灵] 初始化完成");
+    Log.info("单词精灵", "初始化完成，耗时 " + (Date.now() - t0) + "ms");
   } catch (e) {
-    console.error("initApp 失败：", e);
+    Log.error("main", "initApp 失败：", e);
   }
 }
 
@@ -295,12 +307,18 @@ async function initApp() {
 (function boot() {
   document.body.classList.add("preload");
 
+  // ★ 日志模块：接管 console、挂全局错误、加载历史日志数量
+  if (typeof Log !== "undefined" && typeof Log.init === "function") {
+    Log.init();
+  }
+  Log.info("main", "应用启动，开始初始化…");
+
   // 弹窗 HTML 改为惰性填充（partials 里各自填充），
   // 不再需要启动时 injectPartials()
 
   initApp()
     .catch((e) => {
-      console.error("应用初始化失败：", e);
+      Log.error("main", "应用初始化失败：", e);
       if (typeof toast === "function") {
         toast("应用初始化失败：" + (e && e.message ? e.message : e));
       }

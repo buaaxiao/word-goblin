@@ -36,6 +36,24 @@ const SETTINGS_MODAL_HTML = `
         </div>
         <p class="hint-text">导出系统设置、默写设置等配置信息。清缓存后可从该导出文件恢复。</p>
       </div>
+      <div class="row">
+        <label>日志级别</label>
+        <div id="logLevelOptions"></div>
+        <p class="hint-text">控制写入日志文件的详细程度：低于该级别的日志不写入日志文件；浏览器控制台的原生 console 输出始终完整打印。</p>
+      </div>
+      <div class="row">
+        <label>可导出日志行数</label>
+        <input type="number" id="logMaxLinesInput" value="1000" min="0" max="3000" step="100" onchange="changeLogMaxLines()"><label>行</label>
+        <p class="hint-text">内存缓冲与 IndexedDB 落盘日志最多保留最新 N 行（可配置范围 0 ~ 3000，0 表示不保留运行日志），导出 .log 文件同样最多导出 N 行。</p>
+      </div>
+      <div class="row">
+        <label>运行日志</label>
+        <div class="hint-row">
+          <button onclick="exportLogFile()">📄 导出日志</button>
+          <button onclick="clearLogFile()">🗑 清空日志</button>
+        </div>
+        <p class="hint-text" id="logHintText">运行日志会记录关键操作与错误，可导出为 .log 文件用于排查问题。</p>
+      </div>
     </div>
   </div>
 
@@ -48,11 +66,11 @@ const SETTINGS_MODAL_HTML = `
       </div>
       <div class="row">
         <label>每词遍数</label>
-        <input type="number" id="repeatCount" value="3" min="1" max="10" onchange="saveDictationSettings()">
+        <input type="number" id="repeatCount" value="2" min="1" max="10" onchange="saveDictationSettings()">
       </div>
       <div class="row">
         <label>每遍间隔</label>
-        <input type="number" id="repeatIntervalSec" value="2" min="0" max="60" onchange="saveDictationSettings()"><label>秒</label>
+        <input type="number" id="repeatIntervalSec" value="1" min="0" max="60" onchange="saveDictationSettings()"><label>秒</label>
       </div>
       <div class="row">
         <label>报词方式</label>
@@ -95,7 +113,7 @@ function switchSettingsTab(tab) {
 function openSettings() {
   const m = document.getElementById("settingsModal");
   if (!m) {
-    console.error("#settingsModal 不存在");
+    Log.error("settings", "#settingsModal 不存在");
     return;
   }
   // 1. 惰性填充 HTML
@@ -140,6 +158,29 @@ function openSettings() {
     );
   }
 
+  // ★ 日志级别（loglevel 提供，logger.js 暴露）
+  const levelBox = m.querySelector("#logLevelOptions");
+  if (
+    levelBox &&
+    typeof LOG_LEVEL_DEF !== "undefined" &&
+    typeof getLogLevelName === "function"
+  ) {
+    const cur = getLogLevelName();
+    levelBox.innerHTML = _buildCustomSelect(
+      "logLevelSelect",
+      cur,
+      LOG_LEVEL_LABELS[cur] || "",
+      LOG_LEVEL_DEF,
+      "pickLogLevel",
+    );
+  }
+
+  // ★ 可导出日志行数（logger.js 暴露）
+  const linesInput = m.querySelector("#logMaxLinesInput");
+  if (linesInput && typeof getLogMaxLines === "function") {
+    linesInput.value = getLogMaxLines();
+  }
+
   // 同步当前值到 UI
   if (typeof syncThemeModeRadios === "function") {
     syncThemeModeRadios(config.theme);
@@ -153,6 +194,9 @@ function openSettings() {
 
   // 默认显示"系统设置"
   switchSettingsTab("system");
+
+  // ★ 刷新运行日志条数提示
+  if (typeof refreshLogInfo === "function") refreshLogInfo();
 
   // ★ 用 main.js 的 openModalEl 显示
   openModalEl(m);
@@ -208,17 +252,13 @@ function _buildCustomSelect(id, curValue, curLabel, defs, pickFnName) {
 function pickPlayOrder(value) {
   setCustomSelectValue("playOrderSelect", value);
   _closeAllCustomSelects();
-  const s = getDictationSettings();
-  s.playOrder = Number(value);
-  setConfig(KEY_DICTATION, s);
+  setConfig(KEY_DICTATION_PLAY_ORDER, Number(value));
 }
 
 function pickDictMode(value) {
   setCustomSelectValue("dictModeSelect", value);
   _closeAllCustomSelects();
-  const s = getDictationSettings();
-  s.mode = Number(value);
-  setConfig(KEY_DICTATION, s);
+  setConfig(KEY_DICTATION_MODE, Number(value));
 }
 
 function pickDictLang(value) {

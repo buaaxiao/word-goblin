@@ -48,6 +48,8 @@ function toggleDedupe() {
   if (typeof saveCollapseState === "function") saveCollapseState();
   if (typeof applyCollapseState === "function") applyCollapseState();
 
+  Log.info("words", "去重模式已" + (dedupeWords ? "开启" : "关闭"));
+
   renderWords();
 }
 
@@ -224,12 +226,10 @@ function buildWordRowHtml(w, ci, wi, opts) {
 }
 
 function renderWords() {
-  console.log(
-    "[renderWords] wordMode =",
+  Log.debug("words", "渲染单词列表：wordMode =",
     config.wordMode,
     "dedupeWords =",
-    dedupeWords,
-  );
+    dedupeWords,);
 
   // 折叠状态
   const wBody = $("wordBody");
@@ -497,6 +497,13 @@ function performWordReorder(srcIndex, targetIndex, position) {
   // ★ 手动拖拽后，取消排序状态
   wordSort = null;
 
+  Log.info("words", "单词拖拽排序：章节 " +
+      currentChapter +
+      " · " +
+      srcIndex +
+      " → " +
+      insertIndex,);
+
   saveData();
   renderWords();
   toast("单词排序已更新");
@@ -523,7 +530,7 @@ function addWord(text, meaning, ci) {
     return;
   }
   data.chapters[ci].words.push({
-    _id: genId("w_"), // ★ 新增
+    _id: crypto.randomUUID(), // ★ 新增
     text,
     meaning,
     wrongCount: 0,
@@ -533,6 +540,15 @@ function addWord(text, meaning, ci) {
     scoreCount: 0,
     scoreSum: 0,
   });
+
+  Log.info("words", "新增单词「" +
+      text +
+      "」到章节「" +
+      data.chapters[ci].name +
+      "」，该章节共 " +
+      data.chapters[ci].words.length +
+      " 个单词",);
+
   saveData();
   renderWords();
   renderChapterList();
@@ -565,8 +581,13 @@ function doDeleteWord(ci, wi) {
   const w = data.chapters[ci] && data.chapters[ci].words[wi];
   if (!w) return false;
 
+  const deletedText = w.text || "";
+
   data.chapters[ci].words.splice(wi, 1);
   openWordDetails.clear();
+
+  Log.info("words", "删除单词「" + deletedText + "」");
+
   saveData();
   renderWords();
   renderChapterList();
@@ -605,8 +626,12 @@ function doEditWord(ci, wi) {
     toast("单词不能为空");
     return false;
   }
+  const oldText = w.text;
   w.text = text;
   w.meaning = $("mMeaning").value.trim();
+
+  Log.info("words", "修改单词「" + oldText + "」→「" + text + "」");
+
   saveData();
   renderWords();
   return true;

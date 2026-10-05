@@ -56,7 +56,7 @@ const DICTATION_MODAL_HTML = `
 function openDict() {
   const m = document.getElementById("dictModal");
   if (!m) {
-    console.error("#dictModal 不存在");
+    Log.error("dict", "#dictModal 不存在");
     return;
   }
 

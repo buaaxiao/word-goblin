@@ -13,9 +13,11 @@ function loadVoices() {
     try {
       voiceList = speechSynthesis.getVoices();
     } catch (e) {
+      Log.warn("dict", "获取语音列表失败：", e);
       voiceList = [];
     }
     voicesReady = voiceList.length > 0;
+    Log.debug("dict", "语音列表已刷新，共 " + voiceList.length + " 个");
   };
   collect();
   speechSynthesis.onvoiceschanged = collect;
@@ -81,6 +83,7 @@ function speak(text, lang) {
       u.onend = finish;
       u.onerror = (e) => {
         lastSpeechError = (e && e.error) || "unknown";
+        Log.warn("dict", "语音播报失败：" + lastSpeechError + "，文本「" + text + "」",);
         finish();
       };
       setTimeout(finish, Math.max(3000, text.length * 500 + 1500));
@@ -174,8 +177,8 @@ const dict = {
   marks: [],
   idx: 0,
   intervalMs: 12000,
-  repeatCount: 3,
-  repeatIntervalMs: 2000,
+  repeatCount: 2,
+  repeatIntervalMs: 1000,
   speakChinese: false,
   mode: 0,
   selectedChapters: [],
@@ -298,7 +301,7 @@ function startDictation() {
   // ★ 从持久化设置读（不依赖 DOM）
   const s = getDictationSettings();
   dict.intervalMs = (s.intervalSec || 0) * 1000;
-  dict.repeatCount = Math.max(1, s.repeatCount || 3);
+  dict.repeatCount = Math.max(1, s.repeatCount || 2);
   dict.repeatIntervalMs = (s.repeatIntervalSec || 0) * 1000;
 
   // ★ 报词方式只看设置（默认汉语）
@@ -345,6 +348,19 @@ function startDictation() {
 
   // ★ 重置暂停累计
   __elapsedBeforePause = 0;
+
+  Log.info("dict", "开始默写：单词 " +
+      items.length +
+      " 个 · 章节 " +
+      dict.selectedChapters.length +
+      " 个 · 报词 " +
+      (dict.speakChinese ? "中文" : "英文") +
+      " · 间隔 " +
+      s.intervalSec +
+      "s · 遍数 " +
+      dict.repeatCount +
+      " · 顺序 " +
+      order,);
 
   showPhase("playing");
   startTimer();
@@ -601,6 +617,8 @@ function stopTimer() {
 function pauseResume() {
   if (dict.phase !== "playing") return;
 
+  Log.debug("dict", (dict.paused ? "继续默写" : "暂停默写"));
+
   if (dict.paused) {
     // ===== 继续 =====
     dict.paused = false;
@@ -631,6 +649,7 @@ function pauseResume() {
   }
 }
 function stopDictation() {
+  Log.debug("dict", "停止默写，回到空闲状态");
   dict.running = false;
   dict.paused = false;
   if (dict.resumeResolve) {
@@ -663,6 +682,7 @@ function finishDictation() {
 
   // 截断 items 到已播报的部分（含当前正在播报的那个）
   const playedCount = Math.min(dict.idx + 1, dict.items.length);
+  Log.info("dict", "提前结束默写：已播报 " + playedCount + " / " + dict.items.length + " 个单词",);
   if (playedCount < dict.items.length) {
     dict.items = dict.items.slice(0, playedCount);
     dict.marks = dict.marks.slice(0, playedCount);
@@ -879,6 +899,20 @@ function doCompleteDictation() {
     wrongCount,
     score,
   });
+
+  Log.info("dict", "默写出分：总 " +
+      total +
+      " · 对 " +
+      correctCount +
+      " · 错 " +
+      wrongCount +
+      " · 得分 " +
+      score.toFixed(1) +
+      " · 用时 " +
+      formatDur(elapsedSec) +
+      " · 历史累计 " +
+      data.history.length +
+      " 条",);
 
   saveData();
   renderChapterList();

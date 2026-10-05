@@ -159,7 +159,7 @@ function switchHelpTab(tab) {
 function openHelp() {
   const m = document.getElementById("helpModal");
   if (!m) {
-    console.error("#helpModal 不存在");
+    Log.error("help", "#helpModal 不存在");
     return;
   }
   if (!m.innerHTML.trim()) {

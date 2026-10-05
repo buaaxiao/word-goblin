@@ -35,7 +35,7 @@ const STATS_MODAL_HTML = `
 function openStats() {
   const m = document.getElementById("statsModal");
   if (!m) {
-    console.error("#statsModal 不存在");
+    Log.error("stats", "#statsModal 不存在");
     return;
   }
 
@@ -50,14 +50,14 @@ function openStats() {
       try {
         renderChart();
       } catch (e) {
-        console.error("renderChart 失败：", e);
+        Log.error("stats", "renderChart 失败：", e);
       }
     }
     if (typeof renderHistory === "function") {
       try {
         renderHistory();
       } catch (e) {
-        console.error("renderHistory 失败：", e);
+        Log.error("stats", "renderHistory 失败：", e);
       }
     }
   });

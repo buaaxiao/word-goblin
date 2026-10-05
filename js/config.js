@@ -1,192 +1,68 @@
 /* ===================================================================
- * js/config.js — 配置类（单一内存数据源）
- *   数据流：
- *     IndexedDB / localStorage
- *        ↕ (loadConfigFromStorage / persistConfigKey)
- *     config（内存，普通对象）
- *        ↕ (读 config.xxx / 写 config.xxx + persistConfigKey)
- *     所有业务模块
+ * js/config.js — 项目参数配置 + 常量系统组装
  *
- *   外部只读 config.xxx；改动必须走 setConfig / setConfigDictation
- *   （它们负责同步持久化）
+ *   本文件承载"参数配置"，纯声明、无状态、无逻辑：
+ *     · SETTING_ITEMS   设置键表（defaults）
+ *     · KEYS            组装：常量系统.defineConstants
+ *                        （挂载全部全局派生量，KEYS 仅用于调试引用）
  *
- *   依赖：constants.js（KEYS / DICT_LANG / DICTATION_SETTINGS_DEFAULT）
- *         db.js（dbGetAllSettings / dbPutSetting）
+ *   枚举域（ENUM_ITEMS 值表 + is_default 默认项）见 constants.js；
+ *   内存状态与持久化见 config-storage.js。
+ *
+ *   依赖：config-base.js（常量系统）
+ *         constants.js（ENUM_ITEMS / LOG_MAX_LINES_DEFAULT）
+ *   加载顺序：config-base.js → constants.js → config.js → config-storage.js
  * =================================================================== */
 "use strict";
 
 /* =================================================================
- * 配置对象（普通对象）
+ * A. 参数配置：设置键表
+ *
+ *   条目：{ name, label, defaults? }
+ *     · name       大写下划线，用于生成 KEY_<NAME>
+ *     · label      界面展示用
+ *     · defaults   普通设置项的默认值（任意类型）
+ *
+ *   枚举型设置项（THEME / DICT_LANG / DICT_MODE / PLAY_ORDER / SYNC_MODE）：
+ *     · 不写 defaults；枚举值与默认项由 constants.js 的 ENUM_ITEMS
+ *       （is_default 标记）声明，KEYS 组装时按同名容器自动关联
+ *
+ *   默写 5 项子设置（DICTATION_*）为独立普通设置项，不做容器。
+ *
+ *   注：LOG_LEVEL 级别清单由 logger.js 独立定义（logger 保持自洽），
+ *       此处只把它作为普通设置项注册（defaults: "info"），不参与枚举容器推导。
  * ================================================================= */
-const config = {
-  theme: "light",
-  dictLang: DICT_LANG.ZH,
-  chapterCollapsed: false,
-  wordCollapsed: true,
-  chapterMode: "edit",
-  wordMode: "edit",
-  dictation: {
-    intervalSec: 3,
-    repeatCount: 3,
-    repeatIntervalSec: 2,
-    mode: 0,
-    playOrder: 0,
-  },
-  syncMode: "merge",
-};
+const SETTING_ITEMS = [
+  /* 枚举型设置项（默认项由 constants.js ENUM_ITEMS 的 is_default 提供） */
+  { name: "THEME", label: "主题颜色模式" },
+  { name: "DICT_LANG", label: "报词方式" },
+  { name: "SYNC_MODE", label: "同步策略" },
+  { name: "DICT_MODE", label: "默写范围" },
+  { name: "PLAY_ORDER", label: "播报顺序" },
+
+  /* 普通设置项 */
+  { name: "DICTATION_INTERVAL_SEC", label: "默写播报间隔", defaults: 3, },
+  { name: "DICTATION_REPEAT_COUNT", label: "每词遍数", defaults: 2, },
+  { name: "DICTATION_REPEAT_INTERVAL_SEC", label: "每遍间隔", defaults: 1, },
+  { name: "DICTATION_MODE", label: "默写范围", defaults: 0, },
+  { name: "DICTATION_PLAY_ORDER", label: "播报顺序", defaults: 0, },
+  { name: "CHAPTER_COLLAPSED", label: "章节折叠状态", defaults: {} },
+  { name: "WORD_COLLAPSED", label: "单词折叠状态", defaults: {} },
+  { name: "CHAPTER_MODE", label: "章节列表模式", defaults: "list" },
+  { name: "WORD_MODE", label: "单词列表模式", defaults: "list" },
+  { name: "LOG_LEVEL", label: "日志级别", defaults: "info" },
+  { name: "LOG_MAX_LINES", label: "可导出日志行数", defaults: LOG_MAX_LINES_DEFAULT },
+];
 
 /* =================================================================
- * 启动时：从 IndexedDB / localStorage 加载到 config
+ * B. 组装：定义常量 + 挂载全局
  * ================================================================= */
-async function loadConfigFromStorage() {
-  const loadedKeys = new Set();
-
-  // 1. 优先从 IndexedDB 读
-  try {
-    if (typeof dbGetAllSettings === "function") {
-      const rows = await dbGetAllSettings();
-      for (const row of rows) {
-        applyStoredSetting(row.key, row.value);
-        loadedKeys.add(row.key);
-      }
-    }
-  } catch (e) {
-    console.warn("[config] 从 IndexedDB 读失败：", e);
-  }
-
-  // 2. 兜底：IndexedDB 没有的键，从 localStorage 补
-  for (const key of SETTINGS_KEYS) {
-    if (loadedKeys.has(key)) continue;
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw !== null) applyStoredSetting(key, raw);
-    } catch (e) {}
-  }
-}
-
-/** 把"单个存储键值"应用到 config */
-function applyStoredSetting(key, value) {
-  switch (key) {
-    case KEY_THEME:
-      config.theme = value === "dark" ? "dark" : "light";
-      break;
-    case KEY_DICT_LANG:
-      config.dictLang = normalizeDictLang(value);
-      break;
-    case KEY_CHAPTER_COLLAPSED:
-      config.chapterCollapsed = value === "1";
-      break;
-    case KEY_WORD_COLLAPSED:
-      config.wordCollapsed = value === "1";
-      break;
-    case KEY_CHAPTER_MODE:
-      config.chapterMode = value === "view" ? "view" : "edit";
-      break;
-    case KEY_WORD_MODE:
-      config.wordMode = value === "view" ? "view" : "edit";
-      break;
-    case KEY_DICTATION:
-      try {
-        const obj = JSON.parse(value);
-        Object.assign(config.dictation, obj);
-      } catch (e) {}
-      break;
-    case KEY_SYNC_MODE:
-      config.syncMode =
-        value === "cloud_first" ||
-        value === "cloud_replace" ||
-        value === "pull_only"
-          ? value
-          : "merge";
-      break;
-  }
-}
-
-/* =================================================================
- * 写配置（唯一入口，自动持久化）
- * ================================================================= */
-function setConfig(key, value) {
-  applyConfigValue(key, value);
-  persistConfigKey(key);
-}
-
-/** 只改 config 不持久化——仅供 applyStoredSetting 内部用 */
-function applyConfigValue(key, value) {
-  switch (key) {
-    case KEY_THEME:
-      config.theme = value === "dark" ? "dark" : "light";
-      break;
-    case KEY_DICT_LANG:
-      config.dictLang = normalizeDictLang(value);
-      break;
-    case KEY_CHAPTER_COLLAPSED:
-      config.chapterCollapsed = !!value;
-      break;
-    case KEY_WORD_COLLAPSED:
-      config.wordCollapsed = !!value;
-      break;
-    case KEY_CHAPTER_MODE:
-      config.chapterMode = value === "view" ? "view" : "edit";
-      break;
-    case KEY_WORD_MODE:
-      config.wordMode = value === "view" ? "view" : "edit";
-      break;
-    case KEY_DICTATION:
-      Object.assign(config.dictation, value);
-      break;
-    case KEY_SYNC_MODE:
-      config.syncMode =
-        value === "cloud_first" ||
-        value === "cloud_replace" ||
-        value === "pull_only"
-          ? value
-          : "merge";
-      break;
-  }
-}
-
-/* =================================================================
- * 持久化单个 config 键 → IndexedDB + localStorage
- * ================================================================= */
-function persistConfigKey(key) {
-  let stored = null;
-  switch (key) {
-    case KEY_THEME:
-      stored = config.theme;
-      break;
-    case KEY_DICT_LANG:
-      stored = String(config.dictLang);
-      break;
-    case KEY_CHAPTER_COLLAPSED:
-      stored = config.chapterCollapsed ? "1" : "0";
-      break;
-    case KEY_WORD_COLLAPSED:
-      stored = config.wordCollapsed ? "1" : "0";
-      break;
-    case KEY_CHAPTER_MODE:
-      stored = config.chapterMode;
-      break;
-    case KEY_WORD_MODE:
-      stored = config.wordMode;
-      break;
-    case KEY_DICTATION:
-      stored = JSON.stringify(config.dictation);
-      break;
-    case KEY_SYNC_MODE:
-      stored = config.syncMode;
-      break;
-    default:
-      return;
-  }
-
-  // 异步写 IndexedDB
-  if (typeof dbPutSetting === "function") {
-    dbPutSetting(key, stored).catch((e) =>
-      console.warn("[config] 写 IndexedDB 失败：", e),
-    );
-  }
-  // 同步写 localStorage（兜底）
-  try {
-    localStorage.setItem(key, stored);
-  } catch (e) {}
-}
+const KEYS = 常量系统.defineConstants({
+  enumItems: ENUM_ITEMS,
+  settingItems: SETTING_ITEMS,
+  build: {
+    dataDir: "data",
+    dataFile: "data.json",
+    keyPrefix: "wordDictation.",
+    keySuffix: ".v1",  },
+});
