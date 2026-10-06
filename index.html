@@ -13,8 +13,12 @@
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
     />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%F0%9F%90%89%3C/text%3E%3C/svg%3E"
+    />
     <title>单词精灵</title>
-    <link rel="icon" href="data:," />
 
     <!-- CSS：按依赖顺序引入 -->
     <link rel="stylesheet" href="css/variables.css" />
@@ -350,6 +354,8 @@
     <script src="js/chapters-modals.js"></script>
     <script src="js/chapters-search.js"></script>
     <script src="js/io.js"></script>
+    <!-- 语音引擎：VoiPi 统一 TTS（自动降级 browser→edge-tts→google-tts），暴露 window.voipi -->
+    <script type="module" src="lib/voipi/voipi-loader.js"></script>
     <script src="js/dictation.js"></script>
     <script src="js/main.js"></script>
     <script src="js/modal-actions.js"></script>

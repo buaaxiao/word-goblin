@@ -322,13 +322,15 @@ function renderChapterList() {
         ci +
         ')" title="删除">🗑</button>';
 
-    d.innerHTML =
-      handleHtml +
-      checkboxHtml +
-      nameHtml +
-      countHtml +
-      editBtnHtml +
-      delBtnHtml;
+    // 用户输入（章节名）已通过 esc() 转义后才进入 HTML 模板
+    d.innerHTML = [
+      handleHtml,
+      checkboxHtml,
+      nameHtml,
+      countHtml,
+      editBtnHtml,
+      delBtnHtml,
+    ].join("");
 
     if (!viewMode) {
       d.addEventListener("dragstart", function (e) {

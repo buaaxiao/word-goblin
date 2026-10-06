@@ -80,7 +80,8 @@ function closeDict() {
   if (dict.running) {
     // 默写中 → 弹确认框
     try {
-      speechSynthesis.pause();
+      if (window.voipi) window.voipi.pause();
+      else if ("speechSynthesis" in window) speechSynthesis.pause();
     } catch (e) {}
 
     openConfirmModal({
@@ -89,13 +90,15 @@ function closeDict() {
       okTitle: "停止",
       onOk: function () {
         try {
-          speechSynthesis.resume();
+          if (window.voipi) window.voipi.resume();
+          else if ("speechSynthesis" in window) speechSynthesis.resume();
         } catch (e) {}
         finishDictation();
       },
       onCancel: function () {
         try {
-          speechSynthesis.resume();
+          if (window.voipi) window.voipi.resume();
+          else if ("speechSynthesis" in window) speechSynthesis.resume();
         } catch (e) {}
       },
     });

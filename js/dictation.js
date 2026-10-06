@@ -3,142 +3,67 @@
  * 自 index.html 内联脚本拆分而来；所有函数保持为全局 API（兼容内联 onclick）。
  * =================================================================== */
 
-let voiceList = [];
-let voicesReady = false;
-let lastSpeechError = "";
+/* ===================================================================
+ * 语音引擎：统一使用 VoiPi（lib/voipi，MIT）
+ *   - 中英文走同一个库，自动按文本识别语言（zh-CN / en-US）
+ *   - 提供方自动降级链：browser（系统 speechSynthesis）→ edge-tts → google-tts
+ *   - 全部提供方不可用时静默结束，不影响默写流程（与原实现一致）
+ * =================================================================== */
 
-function loadVoices() {
-  if (!("speechSynthesis" in window)) return;
-  const collect = () => {
-    try {
-      voiceList = speechSynthesis.getVoices();
-    } catch (e) {
-      Log.warn("dict", "获取语音列表失败：", e);
-      voiceList = [];
-    }
-    voicesReady = voiceList.length > 0;
-    Log.debug("dict", "语音列表已刷新，共 " + voiceList.length + " 个");
-  };
-  collect();
-  speechSynthesis.onvoiceschanged = collect;
-  setTimeout(collect, 200);
-  setTimeout(collect, 600);
-  setTimeout(collect, 1500);
-}
-
-function pickVoice(lang) {
-  try {
-    if (!voiceList.length) voiceList = speechSynthesis.getVoices();
-  } catch (e) {
-    voiceList = [];
-  }
-  if (!voiceList.length) return null;
-  const norm = (s) => String(s).replace("_", "-").toLowerCase();
-  const base = norm(lang || "").slice(0, 2);
-  let best = null,
-    bestScore = 10;
-  for (const v of voiceList) {
-    const l = norm(v.lang);
-    let score;
-    if (base && l === norm(lang)) score = 0;
-    else if (base && l.indexOf(base) === 0) score = 1;
-    else if (v.default) score = 2;
-    else score = 3;
-    if (!v.localService) score += 0.5;
-    if (score < bestScore) {
-      bestScore = score;
-      best = v;
-    }
-  }
-  return best;
-}
-
+/**
+ * 播报一段文本（由 VoiPi 统一调度与降级）。
+ * 与旧实现保持相同语义：结束、失败或超时都 resolve，调用方无需感知引擎内部。
+ * @param {string} text 要播报的文本
+ * @param {string} lang 语言提示，如 "zh-CN" / "en-US"
+ * @returns {Promise<void>}
+ */
 function speak(text, lang) {
   return new Promise((resolve) => {
-    if (!("speechSynthesis" in window)) {
+    if (!window.voipi) {
       resolve();
       return;
     }
-    const doSpeak = () => {
-      try {
-        speechSynthesis.resume();
-      } catch (e) {}
-
-      const u = new SpeechSynthesisUtterance(text);
-      const v = pickVoice(lang);
-      if (v) {
-        u.voice = v;
-        u.lang = v.lang;
-      } else {
-        u.lang = lang || "zh-CN";
-      }
-      u.rate = 0.9;
-      let done = false;
-      const finish = () => {
-        if (!done) {
-          done = true;
-          resolve();
-        }
-      };
-      u.onend = finish;
-      u.onerror = (e) => {
-        lastSpeechError = (e && e.error) || "unknown";
-        Log.warn("dict", "语音播报失败：" + lastSpeechError + "，文本「" + text + "」",);
-        finish();
-      };
-      setTimeout(finish, Math.max(3000, text.length * 500 + 1500));
-      try {
-        speechSynthesis.speak(u);
-      } catch (e) {
-        finish();
-      }
-    };
-    if (voicesReady) {
-      doSpeak();
-      return;
-    }
-    let tries = 0;
-    const wait = () => {
-      try {
-        voiceList = speechSynthesis.getVoices();
-        voicesReady = voiceList.length > 0;
-      } catch (e) {}
-      if (voicesReady || ++tries > 12) {
-        doSpeak();
-        return;
-      }
-      setTimeout(wait, 100);
-    };
-    wait();
+    // 兜底超时：超过预估时长仍未结束则视为结束（避免流程卡住）
+    const timeout = Math.max(3000, String(text).length * 500 + 1500);
+    const timer = setTimeout(resolve, timeout);
+    window.voipi
+      .speak(text, { lang: lang || "zh-CN", rate: 0.9 })
+      .then(() => {
+        clearTimeout(timer);
+        resolve();
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        resolve();
+      });
   });
 }
 
+/** 停止当前播报（统一出口：VoiPi 中止 + 原生 cancel 兜底） */
+function stopVoipi() {
+  if (window.voipi) {
+    try {
+      window.voipi.stop();
+    } catch (e) {}
+  }
+  if ("speechSynthesis" in window) {
+    try {
+      speechSynthesis.cancel();
+    } catch (e) {}
+  }
+}
+
+/** 测试发音（设置页按钮） */
 function testSpeech() {
-  if (!("speechSynthesis" in window)) {
-    toast("当前浏览器不支持语音");
+  if (!window.voipi) {
+    toast("语音引擎未就绪");
     return;
   }
-  try {
-    speechSynthesis.resume();
-  } catch (e) {}
-  const zh = "你好，我是单词精灵，现在测试发音。";
-  const u = new SpeechSynthesisUtterance(zh);
-  const v = pickVoice("zh-CN");
-  if (v) {
-    u.voice = v;
-    u.lang = v.lang;
-  } else {
-    u.lang = "zh-CN";
-  }
-  u.rate = 0.9;
-  u.onend = () => toast("发音正常");
-  u.onerror = () => toast("发音失败：请检查系统 TTS 中文语音是否已安装启用");
-  try {
-    speechSynthesis.speak(u);
-  } catch (e) {
-    toast("发音失败：" + e.message);
-  }
   toast("正在测试发音…");
+  window.voipi
+    .speak("你好，我是单词精灵，现在测试发音。", { lang: "zh-CN", rate: 0.9 })
+    .then(() => toast("发音正常"))
+    .catch(() => toast("发音失败：请检查系统 TTS 中文语音是否已安装启用"));
 }
 
 function renderDictMeta() {
@@ -445,7 +370,7 @@ async function runDictation() {
         // ===== 遍内 replay =====
         if (result.action === "replay") {
           try {
-            speechSynthesis.cancel();
+            stopVoipi();
           } catch (e) {}
           const idle = await waitInIdle(2000);
           if (idle.action === "stopped") return;
@@ -578,7 +503,7 @@ async function handleJump(i, total, dir) {
     return { jump: false };
   }
   try {
-    speechSynthesis.cancel();
+    stopVoipi();
   } catch (e) {}
   const r = await previewAndCool(target, total);
   if (r.action === "stopped") return { stopped: true };
@@ -636,7 +561,7 @@ function pauseResume() {
     // ===== 暂停 =====
     dict.paused = true;
     try {
-      speechSynthesis.cancel();
+      stopVoipi();
     } catch (e) {}
 
     // ★ 暂停计时：记录已累计秒数，然后停表
@@ -669,7 +594,7 @@ function stopDictation() {
     dict.replayResolve = null;
   }
   try {
-    speechSynthesis.cancel();
+    stopVoipi();
   } catch (e) {}
   stopTimer();
   __elapsedBeforePause = 0;
@@ -690,7 +615,7 @@ function finishDictation() {
 
   // 先停掉正在进行的 TTS 和定时器
   try {
-    speechSynthesis.cancel();
+    stopVoipi();
   } catch (e) {}
   stopTimer();
 
@@ -735,7 +660,7 @@ function _triggerDictAction(action) {
     if (action === "prev" && dict.prevResolve) dict.prevResolve();
     if (action === "replay" && dict.replayResolve) dict.replayResolve();
     try {
-      speechSynthesis.cancel();
+      stopVoipi();
     } catch (e) {}
   };
 

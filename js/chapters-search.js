@@ -132,11 +132,11 @@ function renderChapterComboPanel() {
     })
     .join("");
 
-  panel.innerHTML =
-    headerHtml +
-    (list.length
-      ? listHtml
-      : '<div class="combo-empty">未找到匹配的章节</div>');
+  // 用户输入（章节名）已通过 esc() 转义后才进入 HTML 模板
+  panel.innerHTML = [
+    headerHtml,
+    list.length ? listHtml : '<div class="combo-empty">未找到匹配的章节</div>',
+  ].join("");
 
   const sel = $("comboSelectAll");
   if (sel && headerIndeterminate) sel.indeterminate = true;
