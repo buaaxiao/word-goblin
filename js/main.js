@@ -98,7 +98,7 @@ function openModalEl(el, onOpened) {
     if (first) {
       try {
         first.focus();
-      } catch (e) {}
+      } catch (e) { }
     }
     if (typeof onOpened === "function") {
       try {
@@ -126,8 +126,41 @@ function closeModalEl(el) {
   if (prev && document.contains(prev)) {
     try {
       prev.focus();
-    } catch (e) {}
+    } catch (e) { }
   }
+}
+
+function openAbout() {
+  const modal = document.getElementById('modal');
+  const modalBody = document.getElementById('modalBody');
+  if (!modal || !modalBody) return;
+
+  // 从 meta 或全局配置获取版本号，这里优先读取 window.APP_VERSION，若不存在则使用默认
+  const version = window.APP_VERSION || '1.0.0';
+  const buildDate = window.BUILD_DATE || '2025-03-27';
+
+  modalBody.innerHTML = `
+    <div style="padding: 8px 4px;">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+        <span style="font-size: 2.4rem;">🐉</span>
+        <div>
+          <h2 style="margin: 0; font-size: 1.4rem;">单词精灵</h2>
+          <p style="margin: 4px 0 0; color: var(--text-secondary, #666); font-size: 0.9rem;">
+            版本 ${version}
+          </p>
+        </div>
+      </div>
+      <div style="background: var(--bg-secondary, #f5f7fb); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+        <p style="margin: 0 0 8px; font-size: 0.95rem;"><strong>构建日期：</strong>${buildDate}</p>
+        <p style="margin: 0 0 8px; font-size: 0.95rem;"><strong>描述：</strong>轻量高效的单词默写与复习工具</p>
+        <p style="margin: 0; font-size: 0.95rem;"><strong>作者：</strong>单词精灵团队</p>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 8px;">
+        <button class="secondary" onclick="closeModal()" style="min-width: 80px;">关闭</button>
+      </div>
+    </div>
+  `;
+  modal.classList.remove('hidden');
 }
 
 // ===================================================================
